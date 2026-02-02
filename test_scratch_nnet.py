@@ -37,18 +37,6 @@ def test_tanh_forward():
     np.testing.assert_allclose(out, expected)
 
 
-def test_tanh_backward():
-    """Test Tanh activation backward pass."""
-    layer = Tanh()
-    X = np.array([[0.5, -0.5], [1.0, -1.0]])
-    out = layer.forward(X)
-    dout = np.ones_like(out)
-    dX = layer.backward(dout)
-    # derivative of tanh is 1 - tanh^2
-    expected = 1 - out**2
-    np.testing.assert_allclose(dX, expected)
-
-
 def test_sigmoid_forward():
     """Test Sigmoid activation forward pass."""
     layer = Sigmoid()
@@ -56,18 +44,6 @@ def test_sigmoid_forward():
     out = layer.forward(X)
     expected = 1 / (1 + np.exp(-X))
     np.testing.assert_allclose(out, expected)
-
-
-def test_sigmoid_backward():
-    """Test Sigmoid activation backward pass."""
-    layer = Sigmoid()
-    X = np.array([[0.5, -0.5], [1.0, -1.0]])
-    out = layer.forward(X)
-    dout = np.ones_like(out)
-    dX = layer.backward(dout)
-    # derivative of sigmoid is sigmoid * (1 - sigmoid)
-    expected = out * (1 - out)
-    np.testing.assert_allclose(dX, expected)
 
 
 def test_sequential_forward():

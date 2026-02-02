@@ -20,7 +20,7 @@ class Module(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def backward(self, *argc, **argv) -> np.ndarray | float:
+    def backward(self, *argc, **argv) -> np.ndarray:
         pass
 
     @abc.abstractmethod
