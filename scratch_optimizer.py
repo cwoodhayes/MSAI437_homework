@@ -39,3 +39,49 @@ class SGD(Optimizer):
 
     def zero_grad(self) -> None:
         return None
+
+
+class Adam(Optimizer):
+    """
+    Simple Adam optimizer implementation.
+
+    References:
+    https://optimization.cbe.cornell.edu/index.php?title=Adam
+    https://github.com/theroyakash/Adam
+
+    """
+
+    def __init__(
+        self,
+        params: List[np.ndarray],
+        learning_rate: float = 0.001,
+        beta1: float = 0.9,
+        beta2: float = 0.999,
+        epsilon: float = 1e-8,
+    ) -> None:
+        self._params = params
+        self._lr = learning_rate
+        self._beta1 = beta1
+        self._beta2 = beta2
+        self._epsilon = epsilon
+        self._m = [np.zeros_like(p) for p in params]
+        self._v = [np.zeros_like(p) for p in params]
+        self._t = 0
+
+    def step(self, grads: List[np.ndarray]) -> None:
+        if len(grads) != len(self._params):
+            raise ValueError(
+                "Adam.step() expected grads list to match params list length."
+            )
+        self._t += 1
+        for i, (param, grad) in enumerate(zip(self._params, grads, strict=True)):
+            self._m[i] = self._beta1 * self._m[i] + (1 - self._beta1) * grad
+            self._v[i] = self._beta2 * self._v[i] + (1 - self._beta2) * (grad**2)
+
+            m_hat = self._m[i] / (1 - self._beta1**self._t)
+            v_hat = self._v[i] / (1 - self._beta2**self._t)
+
+            param -= self._lr * m_hat / (np.sqrt(v_hat) + self._epsilon)
+
+    def zero_grad(self) -> None:
+        return None
