@@ -16,15 +16,25 @@ class Module(abc.ABC):
     """Base class for my sub-network entities."""
 
     @abc.abstractmethod
-    def forward(self, X: np.ndarray) -> np.ndarray:
+    def forward(self, *argc, **argv) -> np.ndarray | float:
         pass
 
     @abc.abstractmethod
-    def backprop(self, X: np.ndarray) -> np.ndarray:
+    def backprop(self, *argc, **argv) -> np.ndarray | float:
         pass
 
-    def __call__(self, X: np.ndarray) -> np.ndarray:
+    @abc.abstractmethod
+    def parameters(self) -> list[np.ndarray]:
+        pass
+
+    def __call__(self, X: np.ndarray) -> np.ndarray | float:
         return self.forward(X)
+
+    # some functions that I'm declaring here just as dummy functions
+    # to match the pytorch API
+    def to(self, device: str) -> Module:
+        """Dummy function to match pytorch API."""
+        return self
 
 
 class Sequential(Module):
@@ -37,12 +47,18 @@ class Sequential(Module):
     def forward(self, X: np.ndarray) -> np.ndarray:
         out = X
         for block in self._blocks:
-            out = block(out)
-        return out
+            out = block(out)  # type: ignore
+        return out  # type: ignore
 
     def backprop(self, X: np.ndarray) -> np.ndarray:
         # TODO
         raise NotImplementedError
+
+    def parameters(self) -> list[np.ndarray]:
+        params: list[np.ndarray] = []
+        for block in self._blocks:
+            params.extend(block.parameters())
+        return params
 
 
 class Tanh(Module):
@@ -55,6 +71,9 @@ class Tanh(Module):
         # TODO
         raise NotImplementedError
 
+    def parameters(self) -> list[np.ndarray]:
+        return []
+
 
 class Linear(Module):
     """single linear layer block."""
@@ -65,15 +84,29 @@ class Linear(Module):
         self.out_features = out_features
 
         normal = np.random.default_rng().standard_normal
-        self._weights = normal((in_features, out_features)) * 0.01
-        self._bias = np.zeros((1, out_features))
+
+        # express params as a single matrix so we can use homogeneous
+        # coordinates later and do it all in a single multiplication
+        # this also helps with indexing the weight for backprop later
+        self._params = np.zeros((in_features + 1, out_features + 1))
+        self._params[:in_features, :out_features] = (
+            normal((in_features, out_features)) * 0.01
+        )
+        self._params[-1, :out_features] = np.zeros((1, out_features))
 
     def forward(self, X: np.ndarray) -> np.ndarray:
-        return X @ self._weights + self._bias
+        # each row of X is a data point
+        n_samples = X.shape[0]
+        # add 1 at the end of each data point for bias
+        X_h = np.hstack((X, np.ones((n_samples, 1))))
+        return X_h @ self._params
 
     def backprop(self, X: np.ndarray) -> np.ndarray:
         # TODO
         raise NotImplementedError
+
+    def parameters(self) -> list[np.ndarray]:
+        return [self._params]
 
 
 class Sigmoid(Module):
@@ -85,6 +118,9 @@ class Sigmoid(Module):
     def backprop(self, X: np.ndarray) -> np.ndarray:
         # TODO
         raise NotImplementedError
+
+    def parameters(self) -> list[np.ndarray]:
+        return []
 
 
 class ScratchMSENet(Module):
@@ -123,3 +159,6 @@ class ScratchMSENet(Module):
 
     def backprop(self, X: np.ndarray):
         return self._net.backprop(X)
+
+    def parameters(self) -> list[np.ndarray]:
+        return self._net.parameters()
