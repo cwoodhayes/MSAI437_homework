@@ -15,11 +15,14 @@ class MSELoss(Module):
     def forward(self, y: np.ndarray, yhat: np.ndarray) -> float:
         return np.mean((y - yhat) ** 2)  # type: ignore
 
-    def backprop(
+    def backward(
         self,
         y: np.ndarray,
         yhat: np.ndarray,
     ) -> np.ndarray:
         # Compute gradient of MSE loss with respect to predictions
         n = yhat.shape[0]
-        return (2 / n) * (y - yhat)
+        return (2 / n) * (yhat - y)
+
+    def parameters(self) -> list[np.ndarray]:
+        return []
