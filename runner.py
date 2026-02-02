@@ -234,11 +234,19 @@ def plot_decision_regions(
 
 def eval_and_plot(
     runs: Iterable[tuple[str, DatasetDict, ScratchMSENet, Optimizer]],
-) -> None:
+) -> tuple[dict[str, float], dict[str, ScratchMSENet.Hyperparams]]:
     """Evaluate scratch runs and plot learning curves + decision regions."""
+
+    best_accuracy_by_dset = {}
+    best_hparams_by_dset = {}
+
     for dset_name, data, model, optimizer in runs:
         run = TrainAndTestRun(model, optimizer, data, dset_name)
         res = run.eval()
+
+        if res.test_accuracy > best_accuracy_by_dset.get(dset_name, 0.0):
+            best_accuracy_by_dset[dset_name] = res.test_accuracy
+            best_hparams_by_dset[dset_name] = model.hparams
 
         fig = plt.figure()
         ax0, ax1 = fig.subplots(1, 2)
@@ -270,3 +278,14 @@ def eval_and_plot(
         )
 
         plt.tight_layout()
+
+    # print out best results
+    for dset_name in best_accuracy_by_dset:
+        best_acc = best_accuracy_by_dset[dset_name]
+        best_hparams = best_hparams_by_dset[dset_name]
+        print(
+            f"Best Scratch NN accuracy for dataset {dset_name}: "
+            f"Accuracy={100 * best_acc:.2f}%, HParams={best_hparams}"
+        )
+
+    return best_accuracy_by_dset, best_hparams_by_dset
