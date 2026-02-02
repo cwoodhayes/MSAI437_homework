@@ -12,7 +12,7 @@ class MSELoss(Module):
     def __init__(self) -> None:
         super().__init__()
 
-    def forward(self, y: np.ndarray, yhat: np.ndarray) -> float:
+    def forward(self, y: np.ndarray, yhat: np.ndarray) -> np.ndarray:
         return np.mean((y - yhat) ** 2)  # type: ignore
 
     def backward(
@@ -25,4 +25,7 @@ class MSELoss(Module):
         return (2 / n) * (yhat - y)
 
     def parameters(self) -> list[np.ndarray]:
+        return []
+
+    def grads(self) -> list[np.ndarray]:
         return []

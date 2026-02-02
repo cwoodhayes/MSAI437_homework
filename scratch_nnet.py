@@ -16,7 +16,7 @@ class Module(abc.ABC):
     """Base class for my sub-network entities."""
 
     @abc.abstractmethod
-    def forward(self, *argc, **argv) -> np.ndarray | float:
+    def forward(self, *argc, **argv) -> np.ndarray:
         pass
 
     @abc.abstractmethod
@@ -27,7 +27,11 @@ class Module(abc.ABC):
     def parameters(self) -> list[np.ndarray]:
         pass
 
-    def __call__(self, X: np.ndarray) -> np.ndarray | float:
+    @abc.abstractmethod
+    def grads(self) -> list[np.ndarray]:
+        pass
+
+    def __call__(self, X: np.ndarray) -> np.ndarray:
         return self.forward(X)
 
     # some functions that I'm declaring here just as dummy functions
@@ -62,6 +66,12 @@ class Sequential(Module):
             params.extend(block.parameters())
         return params
 
+    def grads(self) -> list[np.ndarray]:
+        grads: list[np.ndarray] = []
+        for block in self._blocks:
+            grads.extend(block.grads())
+        return grads
+
 
 class Tanh(Module):
     """TanH activation function block."""
@@ -81,6 +91,9 @@ class Tanh(Module):
         return dout * (1 - self._last_output**2)
 
     def parameters(self) -> list[np.ndarray]:
+        return []
+
+    def grads(self) -> list[np.ndarray]:
         return []
 
 
@@ -131,6 +144,11 @@ class Linear(Module):
     def parameters(self) -> list[np.ndarray]:
         return [self._params]
 
+    def grads(self) -> list[np.ndarray]:
+        if self._grads is None:
+            raise RuntimeError("Linear.grads() called before backward().")
+        return [self._grads]
+
 
 class Sigmoid(Module):
     """Sigmoid output layer."""
@@ -150,6 +168,9 @@ class Sigmoid(Module):
         return dout * self._last_output * (1 - self._last_output)
 
     def parameters(self) -> list[np.ndarray]:
+        return []
+
+    def grads(self) -> list[np.ndarray]:
         return []
 
 
@@ -184,7 +205,7 @@ class ScratchMSENet(Module):
             ]
         )
 
-    def forward(self, X: np.ndarray):
+    def forward(self, X: np.ndarray) -> np.ndarray:
         return self._net(X)
 
     def backward(self, X: np.ndarray):
@@ -192,3 +213,6 @@ class ScratchMSENet(Module):
 
     def parameters(self) -> list[np.ndarray]:
         return self._net.parameters()
+
+    def grads(self) -> list[np.ndarray]:
+        return self._net.grads()
