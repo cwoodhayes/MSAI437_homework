@@ -257,7 +257,7 @@ def eval_and_plot(
             .replace(")", "")
         )
         fig.suptitle(
-            f"Dataset: {dset_name}\n{hparams_str}\nFinal Accuracy: {100 * res.test_accuracy:.1f}%"
+            f"(Scratch NN Implementation)\nDataset: {dset_name}\n{hparams_str}\nFinal Accuracy: {100 * res.test_accuracy:.1f}%"
         )
 
         X_test, y_test = res.data["test"]
