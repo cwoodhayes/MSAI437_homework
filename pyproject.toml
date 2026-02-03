@@ -8,5 +8,6 @@ dependencies = [
     "matplotlib>=3.10.8",
     "numpy>=2.4.1",
     "pandas>=3.0.0",
+    "pytest>=9.0.2",
     "torch>=2.10.0",
 ]
