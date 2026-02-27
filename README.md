@@ -1,6 +1,6 @@
 # MSAI 437 Deep Learning Homeworks
-1. HW1: Neural network from scratch in numpy + equivalent pytorch implementation
-2. HW2: PyTorch autoencoder for generating novel emojis
+1. HW1: Neural network from scratch in numpy + comparable PyTorch implementations
+2. HW2: Autoencoder for generating novel emojis (PyTorch)
 
 ## Local Installation
 
