@@ -470,7 +470,7 @@ def plot_attention(
     plt.savefig(f'{title}.png')
 
 
-def plot_attention_multiple(
+def plot_attention_average(
     scores_list: list[np.ndarray],  # list of 20x20 arrays
     token_labels: list[str],
     title='Attention Heatmap',
@@ -533,12 +533,18 @@ def plot_attention_multiple(
 def plot_attention_grid(
     scores_list: list[np.ndarray],  # list of 20x20 arrays
     token_labels: list[str],
+    probabilities: list[float] | None = None,
     title='Attention Heatmap',
     subtitle: str | None = None,
 ):
     """Plot all individual attention heatmaps in a grid."""
     if len(scores_list) == 0:
         raise ValueError('scores_list must contain at least one score matrix')
+
+    if probabilities is not None and len(probabilities) != len(scores_list):
+        raise ValueError(
+            'probabilities must have the same length as scores_list'
+        )
 
     normalized_scores = []
     for scores in scores_list:
@@ -572,7 +578,10 @@ def plot_attention_grid(
     )
     large_ax.set_xlabel('Key (attending to)')
     large_ax.set_ylabel('Query (attending from)')
-    large_ax.set_title('Example 1', pad=16)
+    large_title = 'Example 1'
+    if probabilities is not None:
+        large_title += f'\nP(correct) = {probabilities[0]:.3f}%'
+    large_ax.set_title(large_title, pad=16)
 
     remaining_positions = []
     for row_idx in range(n_rows):
@@ -594,7 +603,10 @@ def plot_attention_grid(
             cbar=False,
             ax=ax,
         )
-        ax.set_title(f'Example {idx + 1}', fontsize=10)
+        panel_title = f'Example {idx + 1}'
+        if probabilities is not None:
+            panel_title += f'\nP(correct) = {probabilities[idx]:.3f}%'
+        ax.set_title(panel_title, fontsize=10)
         ax.set_xlabel('')
         ax.set_ylabel('')
 
@@ -672,6 +684,7 @@ def example(model, opt):
     avg = 0.0
     good_token_labels = []
     good_example_text = []
+    good_probabilities = []
     for i in good:
         trg = torch.zeros((bb, aa), dtype=torch.long)
         ans = torch.zeros((bb, opt.vocab_size), dtype=torch.float)
@@ -695,6 +708,7 @@ def example(model, opt):
         denom = torch.sum(logits, dim=1)
         probs = numer / denom
         print('%s %7.3f%%' % (text, 100.0 * probs[0].item()))
+        good_probabilities.append(100.0 * probs[0].item())
         avg = avg + probs[0].item()
     print(
         '                                                                       Average: %7.3f%%'  # noqa: E501
@@ -712,11 +726,12 @@ def example(model, opt):
         plot_attention_grid(
             scores_list=scores,
             token_labels=good_token_labels,
+            probabilities=good_probabilities,
             title='Attention Grid for GOOD Examples',
             subtitle='All 10 selected good examples',
         )
         avg_prob = 100.0 * avg / float(len(good))
-        plot_attention_multiple(
+        plot_attention_average(
             scores_list=scores,
             token_labels=good_token_labels,
             title='Average Attention Heatmap for GOOD Examples',
@@ -729,6 +744,7 @@ def example(model, opt):
     avg = 0.0
     bad_token_labels = []
     bad_example_text = []
+    bad_probabilities = []
     for i in bad:
         trg = torch.zeros((bb, aa), dtype=torch.long)
         ans = torch.zeros((bb, opt.vocab_size), dtype=torch.float)
@@ -762,6 +778,7 @@ def example(model, opt):
                 opt.vocab[top3[0, 2]],
             )
         )
+        bad_probabilities.append(100.0 * probs[0].item())
         avg = avg + probs[0].item()
     print(
         '                                                                       Average: %7.3f%%'  # noqa: E501
@@ -779,11 +796,12 @@ def example(model, opt):
         plot_attention_grid(
             scores_list=scores,
             token_labels=bad_token_labels,
+            probabilities=bad_probabilities,
             title='Attention Grid for BAD Examples',
             subtitle='All 10 selected bad examples',
         )
         avg_prob = 100.0 * avg / float(len(bad))
-        plot_attention_multiple(
+        plot_attention_average(
             scores_list=scores,
             token_labels=bad_token_labels,
             title='Average Attention Heatmap for BAD Examples',
@@ -792,7 +810,8 @@ def example(model, opt):
     else:
         raise RuntimeError('should be unreachable')
 
-    plt.show()
+    if opt.show_plots:
+        plt.show()
 
 
 def decode_formula(opt, trg):
@@ -884,6 +903,7 @@ def main():
         default=0,
         help='index of single observation to run on if -run_single is set',
     )
+    parser.add_argument('-show_plots', action='store_true', default=False)
 
     opt = parser.parse_args()
     opt.verbose = False
