@@ -555,6 +555,13 @@ def decode_formula(opt, trg):
 
 def run_single(model, opt, obs_idx):
     """Run on just one observation."""
+
+    def write_matrix(file_name, matrix):
+        with open(file_name, 'w') as f:
+            for row in matrix:
+                values = ','.join(f'{value:.5f}' for value in row)
+                f.write(values + ',\n')
+
     model.eval()
     aa = opt.seqlen
     bb = 1
@@ -573,16 +580,16 @@ def run_single(model, opt, obs_idx):
 
     print(text)
 
-    import pandas as pd
-
     if last_scores is not None and last_output is not None:
-        scores_np = last_scores[0, 0].detach().cpu().numpy()
-        output_np = last_output[0, 0].detach().cpu().numpy()
-        pd.DataFrame(scores_np).to_csv(
-            f'cwh_{obs_idx}_scores_{opt.d_model}.csv', index=False
+        scores_np = last_scores[0, 0].detach().cpu().numpy().round(5)
+        output_np = last_output[0, 0].detach().cpu().numpy().round(5)
+        write_matrix(
+            f'cwh_{obs_idx}_scores_{opt.d_model}.csv',
+            scores_np,
         )
-        pd.DataFrame(output_np).to_csv(
-            f'cwh_{obs_idx}_output_{opt.d_model}.csv', index=False
+        write_matrix(
+            f'cwh_{obs_idx}_output_{opt.d_model}.csv',
+            output_np,
         )
     else:
         raise RuntimeError('unreachable')
