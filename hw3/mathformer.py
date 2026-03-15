@@ -468,7 +468,6 @@ def plot_attention(
     ax.set_title(actual_title)
     plt.tight_layout()
     plt.savefig(f'{title}.png')
-    plt.show()
 
 
 def plot_attention_multiple(
@@ -529,7 +528,6 @@ def plot_attention_multiple(
     else:
         plt.tight_layout()
     plt.savefig(f'{title}.png')
-    plt.show()
 
 
 def select_good_and_bad_examples(opt) -> tuple[list[int], list[int]]:
@@ -541,8 +539,8 @@ def select_good_and_bad_examples(opt) -> tuple[list[int], list[int]]:
     """
     good = []
     bad = []
-    high_thresh = 50.0
-    low_thresh = 5.0
+    high_thresh = 80.0
+    low_thresh = 1.0
 
     with open('results.txt', 'rt') as f:
         for obs_idx, line in enumerate(f):
@@ -640,19 +638,20 @@ def example(model, opt):
             subtitle=good_example_text[-1],
         )
         scores = [sc.detach().cpu().numpy() for sc in last_10_scores]
+        avg_prob = 100.0 * avg / float(len(good))
         plot_attention_multiple(
             scores_list=scores,
             token_labels=good_token_labels,
             title='Average Attention Heatmap for GOOD Examples',
-            subtitle='Average of 10 examples',
+            subtitle=f'Average of 10 examples (avg prob. of correct ans = {avg_prob:7.3f}%)',  # noqa: E501
         )
     else:
         raise RuntimeError('should be unreachable')
-    # Add code to capture (and display) data for your attention heat map
-    # for good examples here.
 
     print('BAD Examples:')
     avg = 0.0
+    bad_token_labels = []
+    bad_example_text = []
     for i in bad:
         trg = torch.zeros((bb, aa), dtype=torch.long)
         ans = torch.zeros((bb, opt.vocab_size), dtype=torch.float)
@@ -662,6 +661,10 @@ def example(model, opt):
             if j == 19:
                 ans[0, trg[0, j]] = 1.0
             text = decode_formula(opt, trg)
+        bad_token_labels.append(
+            [opt.vocab[int(token_id)] for token_id in trg[0]]
+        )
+        bad_example_text.append(text)
         trg = trg.cuda()
         ans = ans.cuda()
 
@@ -689,10 +692,30 @@ def example(model, opt):
     )
     print(' ')
 
-    # Add code to capture (and display) data for your attention heat map
-    # for bad examples here.  Also, add code to adjust attention, scores,
-    # the no_peak mask, etc. here.  Redisplay the heatmap for the revised
-    # attention and show the impact on results.
+    if (
+        last_scores is not None
+        and last_output is not None
+        and bad_token_labels
+        and bad_example_text
+    ):
+        plot_attention(
+            last_scores[0, 0].detach().cpu().numpy(),
+            token_labels=bad_token_labels[-1],
+            title='Attention Heatmap for BAD Example',
+            subtitle=bad_example_text[-1],
+        )
+        scores = [sc.detach().cpu().numpy() for sc in last_10_scores]
+        avg_prob = 100.0 * avg / float(len(bad))
+        plot_attention_multiple(
+            scores_list=scores,
+            token_labels=bad_token_labels,
+            title='Average Attention Heatmap for BAD Examples',
+            subtitle=f'Average of 10 examples (avg prob. of correct ans = {avg_prob:7.3f}%)',  # noqa: E501
+        )
+    else:
+        raise RuntimeError('should be unreachable')
+
+    plt.show()
 
 
 def decode_formula(opt, trg):
