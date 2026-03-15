@@ -1,0 +1,26 @@
+# ruff.toml for ROS projects
+
+line-length = 79
+
+[format]
+quote-style = "single"
+
+[lint]
+select = ["E", "F", "D", "W"]     # enable pyflakes, pycodestyle, and pydocstyle-like rules
+ignore = [
+    "D203",  # one-blank-line-before-class, conflicts with D211
+    "D212",  # multi-line-summary-second-line, conflicts with D212
+    "E203",  # whitespace before ':'
+    "F401",  # unused import
+    "F403",  # from ... import * used; unable to detect undefined names
+
+    # ignoring these cuz the existing code for hw3 doesn't have them and i don't want red squigglies everywhere
+    "D100",  # missing docstring in public module
+    "D101",  # missing docstring in public class
+    "D102",  # missing docstring in public method
+    "D103",  # missing docstring in public function
+    "D104",  # missing docstring in public package
+    "D105",  # missing docstring in magic method
+    "D106",  # missing docstring in public nested class
+    "D107",  # missing docstring in __init__
+]

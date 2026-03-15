@@ -29,14 +29,14 @@ def read_encode(file_name, vocab, words, corpus, threshold):
     wID = len(vocab)
 
     if threshold > -1:
-        with open(file_name, "rt") as f:
+        with open(file_name, 'rt') as f:
             for line in f:
-                line = line.replace("\n", "")
-                tokens = line.split(" ")
+                line = line.replace('\n', '')
+                tokens = line.split(' ')
                 for t in tokens:
                     try:
                         elem = words[t]
-                    except:
+                    except:  # noqa: E722
                         elem = [wID, 0]
                         vocab.append(t)
                         wID = wID + 1
@@ -47,23 +47,23 @@ def read_encode(file_name, vocab, words, corpus, threshold):
         words = {}
         vocab = []
         wID = 0
-        words["<unk>"] = [wID, 100]
-        vocab.append("<unk>")
+        words['<unk>'] = [wID, 100]
+        vocab.append('<unk>')
         for t in temp:
             if temp[t][1] >= threshold:
                 vocab.append(t)
                 wID = wID + 1
                 words[t] = [wID, temp[t][1]]
 
-    with open(file_name, "rt") as f:
+    with open(file_name, 'rt') as f:
         for line in f:
-            line = line.replace("\n", "")
-            tokens = line.split(" ")
+            line = line.replace('\n', '')
+            tokens = line.split(' ')
             for t in tokens:
                 try:
                     wID = words[t][0]
-                except:
-                    wID = words["<unk>"][0]
+                except:  # noqa: E722
+                    wID = words['<unk>'][0]
                 corpus.append(wID)
 
     return [vocab, words, corpus]
@@ -90,18 +90,22 @@ class PositionalEncoder(nn.Module):
         for pos in range(max_seq_len):
             for i in range(0, d_model, 2):
                 pe[pos, i] = math.sin(pos / (10000 ** ((2 * i) / d_model)))
-                pe[pos, i + 1] = math.cos(pos / (10000 ** ((2 * (i + 1)) / d_model)))
+                pe[pos, i + 1] = math.cos(
+                    pos / (10000 ** ((2 * (i + 1)) / d_model))
+                )
         pe = pe.unsqueeze(0)
-        self.register_buffer("pe", pe)
+        self.register_buffer('pe', pe)
 
     def forward(self, x):
         # make embeddings relatively larger
         x = x * math.sqrt(self.d_model)
         # add constant to embedding
         seq_len = x.size(1)
-        pe = Variable(self.pe[:, :seq_len], requires_grad=False)
-        if x.is_cuda:
-            pe.cuda()
+        pe = Variable(
+            self.pe[:, :seq_len],  # type: ignore
+            requires_grad=False,
+        )
+        pe = pe.to(x.device)
         x = x + pe
         return self.dropout(x)
 
@@ -193,8 +197,8 @@ class FeedForward(nn.Module):
         return x
 
 
-def get_clones(module, N):
-    return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
+def get_clones(module: nn.Module, N: int) -> nn.ModuleList:
+    return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
 
 
 class CosineWithRestarts(torch.optim.lr_scheduler._LRScheduler):
@@ -219,7 +223,8 @@ class CosineWithRestarts(torch.optim.lr_scheduler._LRScheduler):
 
     def get_lr(self):
         """Get updated learning rate."""
-        # HACK: We need to check if this is the first time get_lr() was called, since
+        # HACK: We need to check if this is the first time get_lr() was called,
+        # since
         # we want to start with step = 0, but _LRScheduler calls get_lr with
         # last_epoch + 1 when initialized.
         if not self._initialized:
@@ -278,7 +283,9 @@ class DecoderLayerGPT(nn.Module):
 
 
 class DecoderGPT(nn.Module):
-    def __init__(self, vocab_size, d_model, N, heads, seqlen, norm, opt, dropout):
+    def __init__(
+        self, vocab_size, d_model, N, heads, seqlen, norm, opt, dropout
+    ):
         super().__init__()
         self.N = N
         self.embed = Embedder(vocab_size, d_model)
@@ -291,8 +298,8 @@ class DecoderGPT(nn.Module):
     def forward(self, trg, mask):
         x = self.embed(trg)
         x = self.pe(x)
-        for i in range(self.N):
-            x = self.layers[i](x, mask)
+        for layer in self.layers:
+            x = layer(x, mask)
         return self.norm(x)
 
 
@@ -339,7 +346,7 @@ def get_modelGPT(opt, vocab_size):
     )
 
     if opt.loadname is not None:
-        print("loading pretrained weights...")
+        print('loading pretrained weights...')
         model.load_state_dict(torch.load(opt.loadname))
     else:
         for p in model.parameters():
@@ -372,11 +379,12 @@ def example(model, opt):
     mask = Variable(torch.from_numpy(nopeak_mask) == 0)
     mask = mask.cuda()
 
-    print("GOOD Examples:")
+    print('GOOD Examples:')
     avg = 0.0
     for i in good:
         trg = torch.zeros((bb, aa), dtype=torch.long)
         ans = torch.zeros((bb, opt.vocab_size), dtype=torch.float)
+        text = ''
         for j in range(aa):
             trg[0, j] = opt.test[i * aa + j]
             if j == 19:
@@ -391,22 +399,23 @@ def example(model, opt):
         numer = torch.sum(numer, dim=1)
         denom = torch.sum(logits, dim=1)
         probs = numer / denom
-        print("%s %7.3f%%" % (text, 100.0 * probs[0].item()))
+        print('%s %7.3f%%' % (text, 100.0 * probs[0].item()))
         avg = avg + probs[0].item()
     print(
-        "                                                                       Average: %7.3f%%"
+        '                                                                       Average: %7.3f%%'  # noqa: E501
         % (100.0 * avg / float(len(good)))
     )
-    print(" ")
+    print(' ')
 
     # Add code to capture (and display) data for your attention heat map
     # for good examples here.
 
-    print("BAD Examples:")
+    print('BAD Examples:')
     avg = 0.0
     for i in bad:
         trg = torch.zeros((bb, aa), dtype=torch.long)
         ans = torch.zeros((bb, opt.vocab_size), dtype=torch.float)
+        text = ''
         for j in range(aa):
             trg[0, j] = opt.test[i * aa + j]
             if j == 19:
@@ -423,7 +432,7 @@ def example(model, opt):
         probs = numer / denom
         top3_values, top3 = torch.topk(logits, k=3)
         print(
-            "%s %7.3f%% %5s %5s %5s"
+            '%s %7.3f%% %5s %5s %5s'
             % (
                 text,
                 100.0 * probs[0].item(),
@@ -434,10 +443,10 @@ def example(model, opt):
         )
         avg = avg + probs[0].item()
     print(
-        "                                                                       Average: %7.3f%%"
+        '                                                                       Average: %7.3f%%'  # noqa: E501
         % (100.0 * avg / float(len(bad)))
     )
-    print(" ")
+    print(' ')
 
     # Add code to capture (and display) data for your attention heat map
     # for bad examples here.  Also, add code to adjust attention, scores,
@@ -447,13 +456,13 @@ def example(model, opt):
 
 def decode_formula(opt, trg):
     vocab = opt.vocab
-    text = "[START] a %5s b %5s c %5s d %5s " % (
+    text = '[START] a %5s b %5s c %5s d %5s ' % (
         vocab[trg[0, 2]],
         vocab[trg[0, 4]],
         vocab[trg[0, 6]],
         vocab[trg[0, 8]],
     )
-    text = text + "[VARS] %s %s [EQ] ans = %s %s %s [ANS] %5s" % (
+    text = text + '[VARS] %s %s [EQ] ans = %s %s %s [ANS] %5s' % (
         vocab[trg[0, 10]],
         vocab[trg[0, 11]],
         vocab[trg[0, 15]],
@@ -468,23 +477,23 @@ def main():
     random.seed(42)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-no_cuda", action="store_true")
-    parser.add_argument("-SGDR", action="store_true")
-    parser.add_argument("-epochs", type=int, default=20)
-    parser.add_argument("-d_model", type=int, default=512)
-    parser.add_argument("-n_layers", type=int, default=6)
-    parser.add_argument("-heads", type=int, default=8)
-    parser.add_argument("-dropout", type=int, default=0.1)
-    parser.add_argument("-batchsize", type=int, default=1)
-    parser.add_argument("-printevery", type=int, default=100)
-    parser.add_argument("-lr", type=float, default=0.00001)
-    parser.add_argument("-seqlen", type=int, default=512)
-    parser.add_argument("-threshold", type=int, default=0)
-    parser.add_argument("-savename", type=str)
-    parser.add_argument("-loadname", type=str)
-    parser.add_argument("-tied", type=int, default=1)
-    parser.add_argument("-dir_name", type=str, default="model")
-    parser.add_argument("-norm", type=float, default=0.0)
+    parser.add_argument('-no_cuda', action='store_true')
+    parser.add_argument('-SGDR', action='store_true')
+    parser.add_argument('-epochs', type=int, default=20)
+    parser.add_argument('-d_model', type=int, default=512)
+    parser.add_argument('-n_layers', type=int, default=6)
+    parser.add_argument('-heads', type=int, default=8)
+    parser.add_argument('-dropout', type=int, default=0.1)
+    parser.add_argument('-batchsize', type=int, default=1)
+    parser.add_argument('-printevery', type=int, default=100)
+    parser.add_argument('-lr', type=float, default=0.00001)
+    parser.add_argument('-seqlen', type=int, default=512)
+    parser.add_argument('-threshold', type=int, default=0)
+    parser.add_argument('-savename', type=str)
+    parser.add_argument('-loadname', type=str)
+    parser.add_argument('-tied', type=int, default=1)
+    parser.add_argument('-dir_name', type=str, default='model')
+    parser.add_argument('-norm', type=float, default=0.0)
 
     opt = parser.parse_args()
     opt.verbose = False
@@ -492,20 +501,19 @@ def main():
     opt.device = 0 if opt.no_cuda is False else -1
     if opt.device == 0:
         assert torch.cuda.is_available()
-    opt.device = torch.device("cuda:0")
+    opt.device = torch.device('cuda:0')
 
-    [opt.vocab, opt.words, opt.train] = read_encode("train.txt", [], {}, [], 0)
-    print("vocab: %d train: %d" % (len(opt.vocab), len(opt.train)))
+    [opt.vocab, opt.words, opt.train] = read_encode('train.txt', [], {}, [], 0)
+    print('vocab: %d train: %d' % (len(opt.vocab), len(opt.train)))
     [opt.vocab, opt.words, opt.test] = read_encode(
-        "test.txt", opt.vocab, opt.words, [], -1
+        'test.txt', opt.vocab, opt.words, [], -1
     )
-    print("vocab: %d test: %d" % (len(opt.vocab), len(opt.test)))
+    print('vocab: %d test: %d' % (len(opt.vocab), len(opt.test)))
     [opt.vocab, opt.words, opt.valid] = read_encode(
-        "valid.txt", opt.vocab, opt.words, [], -1
+        'valid.txt', opt.vocab, opt.words, [], -1
     )
-    print("vocab: %d test: %d" % (len(opt.vocab), len(opt.test)))
+    print('vocab: %d test: %d' % (len(opt.vocab), len(opt.test)))
 
-    obs = len(opt.train)
     opt.vocab_size = len(opt.vocab)
     temp = []
     for i in range(opt.vocab_size):
@@ -517,11 +525,11 @@ def main():
 
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
-    text = "total params: %d" % (params)
+    text = 'total params: %d' % (params)
     print(text)
 
     example(model, opt)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
