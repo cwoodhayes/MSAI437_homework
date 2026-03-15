@@ -182,9 +182,11 @@ def attention(
                     q[0][0][token_idx][val_idx]
                     * k[0][0][other_tok_idx][val_idx]
                 )
-            sm_input[0][0][token_idx][other_tok_idx] = (
-                dot / math.sqrt(d_k) * mask[0][0][token_idx][other_tok_idx]
-            )
+            scaled = dot / math.sqrt(d_k)
+            if mask[0][0][token_idx][other_tok_idx] == 0:
+                # -inf
+                scaled = -1e9
+            sm_input[0][0][token_idx][other_tok_idx] = scaled
 
     # now take softmax. each row is probability weighting for a token,
     # across all tokens.
@@ -543,6 +545,27 @@ def decode_formula(opt, trg):
     return text
 
 
+def run_single(model, opt, obs_idx):
+    """Run on just one observation."""
+    model.eval()
+    aa = opt.seqlen
+    bb = 1
+
+    nopeak_mask = np.triu(np.ones((bb, aa, aa), dtype=np.int32), k=1)
+    mask = Variable(torch.from_numpy(nopeak_mask) == 0).cuda()
+
+    trg = torch.zeros((bb, aa), dtype=torch.long)
+    for j in range(aa):
+        trg[0, j] = opt.test[obs_idx * aa + j]
+    text = decode_formula(opt, trg)
+    trg = trg.cuda()
+
+    with torch.no_grad():
+        [d_output, preds] = model(trg, mask)
+
+    print(text)
+
+
 def main():
     random.seed(42)
 
@@ -564,6 +587,13 @@ def main():
     parser.add_argument('-tied', type=int, default=1)
     parser.add_argument('-dir_name', type=str, default='model')
     parser.add_argument('-norm', type=float, default=0.0)
+    parser.add_argument('-run_single', action='store_true')
+    parser.add_argument(
+        '-idx',
+        type=int,
+        default=0,
+        help='index of single observation to run on if -run_single is set',
+    )
 
     opt = parser.parse_args()
     opt.verbose = False
@@ -598,7 +628,12 @@ def main():
     text = 'total params: %d' % (params)
     print(text)
 
-    example(model, opt)
+    if opt.run_single:
+        print(f'Running on OBSERVATION {opt.idx}...')
+        run_single(model, opt, obs_idx=opt.idx)
+        return
+    else:
+        example(model, opt)
 
 
 if __name__ == '__main__':
