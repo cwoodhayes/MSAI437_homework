@@ -49,3 +49,18 @@ Also of note is that the no-peek mask is clearly visible as an upper right trian
 - Integrated these plotting calls in `example()` to render both a single-example heatmap for the last input, and an averaged heatmap for all 10 inputs (for both good and bad). Also refactored some code into helper functions for cleanliness.
 
 ## Part 3
+First i tried to implement a multiplicative gain on just the b value's index (4) applied to the input to the softmax function, to give a higher attention weight to the value of b from all tokens. This helped for some examples but not others; I figured out that this is due to softmax inputs just as likely being negative as positive, so for negative values it actually pulled the outputs down.
+I then switched to an additive augmentation rather than multiplicative gain; this ran into the problem that the augmentation was inconsistently applied depending upon how the other tokens were weighted; in some cases, this augmentation dominated, making the network forget to pay attention to other important tokens, while in others it was a drop in the bucket compared to other large-valued tokens, showing no change.
+
+Finally, I realized that what really mattered was that we _ignore_ the other operand tokens; attention to b could mostly work itself out if the others were ignored.
+
+This is the final solution I ran with -- subtracting `1e9` from the other argument tokens, and adding `1` to the `b` argument token, resulting in an average score of 81%, for a 78% improvment on this test set.
+
+I implemented this using 2 global variables, `focus_indices` and `focus_augs` applied prior to softmax in the `attention()` function, and which i set to the values above prior to re-running on the bad dataset.
+
+Obviously, this approach is tailored specifically to this particular input operation `b*b`, and will break all the other cases. We could fix that by automatically applying the augmentation to the correct input arguments at runtime, but this would defeat the whole point of a neural network; it's hardcoding. Really this needs to be solved with training tricks in any real scenario.
+
+However, it's an interesting think to observe and mess around with in a pet environment like this.
+
+![Attention Heatmaps for IMPROVED examples](/hw3/Attention%20Grid%20for%20IMPROVED%20Examples_grid.png)
+> **Improved examples (above)**: Attention heatmaps for the 10 bad input examples in which the correct answer token was originally predicted with <5% proability, with the augmentation described above applied, resulting in a 79% average score improvement.

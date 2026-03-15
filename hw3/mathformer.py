@@ -32,8 +32,8 @@ last_scores = None
 last_output = None
 last_10_scores = deque(maxlen=10)
 
-focus_index = 0
-focus_gain = 1.0
+focus_indices = []
+focus_augs = []
 
 
 def read_encode(file_name, vocab, words, corpus, threshold):
@@ -204,7 +204,8 @@ def attention(
 
     # for part 3 - apply a manual adjustment to the softmax input for
     # a token we know we want to focus on, for all tokens attending to it.
-    sm_input[0, 0, :, focus_index] *= focus_gain
+    for focus_index, focus_augment in zip(focus_indices, focus_augs):
+        sm_input[0, 0, :, focus_index] += focus_augment
 
     # now take softmax. each row is probability weighting for a token,
     # across all tokens.
@@ -818,17 +819,17 @@ def example(model, opt):
 
     # part 3 - rerun with the focus adjusted to pay attention to operand b.
     # see hw3/README.md for explanation.
-    global focus_index
-    global focus_gain
+    global focus_indices
+    global focus_augs
     # position of the "b" value since we focus on b*b
-    focus_index = 4
-    focus_gain = 2.0
+    focus_indices = [4, 2, 6, 8]
+    focus_augs = [1, -1e9, -1e9, -1e9]
     run_examples_and_plot(
         model=model,
         opt=opt,
         mask=mask,
         example_indices=bad,
-        example_kind='ADJUSTED',
+        example_kind='IMPROVED',
         include_top3=True,
     )
 
