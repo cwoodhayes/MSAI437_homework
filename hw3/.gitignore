@@ -1,3 +1,4 @@
 *.csv
 weights_*
 results.txt
+*.png

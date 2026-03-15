@@ -5,6 +5,7 @@ import argparse
 # import shutil
 import random
 import numpy as np
+from collections import deque
 
 # import time
 import copy
@@ -29,6 +30,7 @@ import seaborn as sns
 
 last_scores = None
 last_output = None
+last_10_scores = deque(maxlen=10)
 
 
 def read_encode(file_name, vocab, words, corpus, threshold):
@@ -221,6 +223,7 @@ def attention(
 
     last_scores = scores
     last_output = output
+    last_10_scores.append(scores)
     return output
 
 
@@ -443,12 +446,12 @@ def get_modelGPT(opt, vocab_size):
 
 
 def plot_attention(
-    scores: np.ndarray,
+    scores: np.ndarray,  # 20x20 array
     token_labels: list,
     title='Attention Heatmap',
     subtitle: str | None = None,
 ):
-    # scores should be shape [20, 20] numpy array
+    """Plot a heatmap of attention scores."""
     fig, ax = plt.subplots(figsize=(10, 8))
     sns.heatmap(
         scores,
@@ -464,6 +467,67 @@ def plot_attention(
         actual_title += '\n"' + subtitle + '"'
     ax.set_title(actual_title)
     plt.tight_layout()
+    plt.savefig(f'{title}.png')
+    plt.show()
+
+
+def plot_attention_multiple(
+    scores_list: list[np.ndarray],  # list of 20x20 arrays
+    token_labels: list,
+    title='Attention Heatmap',
+    subtitle: str | None = None,
+):
+    """
+    Plot an average heatmap of multiple examples that share a common structure.
+
+    This is for part 2. Basically any token that's the same across all examples
+    will be labeled with that token label, and anything that's not
+    identical across all with be shown as [X].
+
+    Useful for showing model attention over many similar examples,
+    eg all multiplications b * b
+    """
+    if len(scores_list) == 0:
+        raise ValueError('scores_list must contain at least one score matrix')
+
+    normalized_scores = []
+    for scores in scores_list:
+        scores_np = np.asarray(scores)
+        if scores_np.ndim == 4:
+            scores_np = scores_np[0, 0]
+        elif scores_np.ndim == 3:
+            scores_np = scores_np[0]
+        normalized_scores.append(scores_np)
+
+    avg_scores = np.mean(np.stack(normalized_scores, axis=0), axis=0)
+
+    if len(token_labels) > 0 and isinstance(token_labels[0], list):
+        labels_by_position = []
+        for labels_at_pos in zip(*token_labels):
+            first = labels_at_pos[0]
+            if all(label == first for label in labels_at_pos):
+                labels_by_position.append(first)
+            else:
+                labels_by_position.append('[X]')
+    else:
+        labels_by_position = token_labels
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+    sns.heatmap(
+        avg_scores,
+        xticklabels=labels_by_position,
+        yticklabels=labels_by_position,
+        cmap='Blues',
+        ax=ax,
+    )
+    ax.set_xlabel('Key (attending to)')
+    ax.set_ylabel('Query (attending from)')
+    ax.set_title(title, pad=16)
+    if subtitle is not None:
+        fig.suptitle(subtitle, y=0.98, fontsize=10)
+        plt.tight_layout(rect=(0, 0, 1, 0.92))
+    else:
+        plt.tight_layout()
     plt.savefig(f'{title}.png')
     plt.show()
 
@@ -490,8 +554,8 @@ def example(model, opt):
 
     print('GOOD Examples:')
     avg = 0.0
-    good_token_labels = None
-    good_example_text = None
+    good_token_labels = []
+    good_example_text = []
     for i in good:
         trg = torch.zeros((bb, aa), dtype=torch.long)
         ans = torch.zeros((bb, opt.vocab_size), dtype=torch.float)
@@ -501,8 +565,10 @@ def example(model, opt):
             if j == 19:
                 ans[0, trg[0, j]] = 1.0
             text = decode_formula(opt, trg)
-        good_token_labels = [opt.vocab[int(token_id)] for token_id in trg[0]]
-        good_example_text = text
+        good_token_labels.append(
+            [opt.vocab[int(token_id)] for token_id in trg[0]]
+        )
+        good_example_text.append(text)
         trg = trg.cuda()
         ans = ans.cuda()
 
@@ -523,14 +589,21 @@ def example(model, opt):
     if (
         last_scores is not None
         and last_output is not None
-        and good_token_labels is not None
-        and good_example_text is not None
+        and good_token_labels
+        and good_example_text
     ):
         plot_attention(
             last_scores[0, 0].detach().cpu().numpy(),
-            token_labels=good_token_labels,
+            token_labels=good_token_labels[-1],
             title='Attention Heatmap for GOOD Example',
-            subtitle=good_example_text,
+            subtitle=good_example_text[-1],
+        )
+        scores = [sc.detach().cpu().numpy() for sc in last_10_scores]
+        plot_attention_multiple(
+            scores_list=scores,
+            token_labels=good_token_labels,
+            title='Average Attention Heatmap for GOOD Examples',
+            subtitle='Average of 10 examples',
         )
     else:
         raise RuntimeError('should be unreachable')
