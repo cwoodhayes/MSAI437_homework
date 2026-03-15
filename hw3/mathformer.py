@@ -540,7 +540,7 @@ def select_good_and_bad_examples(opt) -> tuple[list[int], list[int]]:
     good = []
     bad = []
     high_thresh = 80.0
-    low_thresh = 1.0
+    low_thresh = 5.0
 
     with open('results.txt', 'rt') as f:
         for obs_idx, line in enumerate(f):

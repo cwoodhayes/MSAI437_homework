@@ -17,7 +17,7 @@ python mathformer.py -d_model 128 -seqlen 20 -loadname weights_128 -n_layers 1 -
 
 - I filtered `results.txt` to only expressions with operation `[EQ] ans = b * b`.
 - From those, I selected the first 10 "good" observations where the reported probability of the correct answer (last token in each line in `results.txt`) is `> 80%`.
-- I selected the first 10 "bad" observations where that same probability is `< 1%`.
+- I selected the first 10 "bad" observations where that same probability is `< 5%`.
 - This is implemented in `select_good_and_bad_examples()`.
 
 ### e. Document any modifications you made to the code to produce your attention heatmaps.
