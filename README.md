@@ -1,6 +1,7 @@
 # MSAI 437 Deep Learning Homeworks
 1. HW1: Neural network from scratch in numpy + comparable PyTorch implementations
 2. HW2: Autoencoder for generating novel emojis (PyTorch)
+3. HW3: Transformer for solving elementary binary arithmetic problems specified as text strings.
 
 ## Local Installation
 
