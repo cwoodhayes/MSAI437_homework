@@ -470,6 +470,46 @@ def plot_attention(
     plt.savefig(f'{title}.png')
 
 
+def normalize_attention_scores(
+    scores_list: list[np.ndarray],
+) -> list[np.ndarray]:
+    """Convert score tensors/arrays into 2D attention matrices."""
+    if len(scores_list) == 0:
+        raise ValueError('scores_list must contain at least one score matrix')
+
+    normalized_scores = []
+    for scores in scores_list:
+        scores_np = np.asarray(scores)
+        if scores_np.ndim == 4:
+            scores_np = scores_np[0, 0]
+        elif scores_np.ndim == 3:
+            scores_np = scores_np[0]
+        normalized_scores.append(scores_np)
+    return normalized_scores
+
+
+def get_average_attention_data(
+    scores_list: list[np.ndarray],
+    token_labels: list[str],
+) -> tuple[np.ndarray, list[str]]:
+    """Return the average attention matrix and labels shared by position."""
+    normalized_scores = normalize_attention_scores(scores_list)
+    avg_scores = np.mean(np.stack(normalized_scores, axis=0), axis=0)
+
+    if len(token_labels) > 0 and isinstance(token_labels[0], list):
+        labels_by_position = []
+        for labels_at_pos in zip(*token_labels):
+            first = labels_at_pos[0]
+            if all(label == first for label in labels_at_pos):
+                labels_by_position.append(first)
+            else:
+                labels_by_position.append('[X]')
+    else:
+        labels_by_position = token_labels
+
+    return avg_scores, labels_by_position
+
+
 def plot_attention_average(
     scores_list: list[np.ndarray],  # list of 20x20 arrays
     token_labels: list[str],
@@ -486,30 +526,10 @@ def plot_attention_average(
     Useful for showing model attention over many similar examples,
     eg all multiplications b * b
     """
-    if len(scores_list) == 0:
-        raise ValueError('scores_list must contain at least one score matrix')
-
-    normalized_scores = []
-    for scores in scores_list:
-        scores_np = np.asarray(scores)
-        if scores_np.ndim == 4:
-            scores_np = scores_np[0, 0]
-        elif scores_np.ndim == 3:
-            scores_np = scores_np[0]
-        normalized_scores.append(scores_np)
-
-    avg_scores = np.mean(np.stack(normalized_scores, axis=0), axis=0)
-
-    if len(token_labels) > 0 and isinstance(token_labels[0], list):
-        labels_by_position = []
-        for labels_at_pos in zip(*token_labels):
-            first = labels_at_pos[0]
-            if all(label == first for label in labels_at_pos):
-                labels_by_position.append(first)
-            else:
-                labels_by_position.append('[X]')
-    else:
-        labels_by_position = token_labels
+    avg_scores, labels_by_position = get_average_attention_data(
+        scores_list=scores_list,
+        token_labels=token_labels,
+    )
 
     fig, ax = plt.subplots(figsize=(10, 8))
     sns.heatmap(
@@ -546,48 +566,57 @@ def plot_attention_grid(
             'probabilities must have the same length as scores_list'
         )
 
-    normalized_scores = []
-    for scores in scores_list:
-        scores_np = np.asarray(scores)
-        if scores_np.ndim == 4:
-            scores_np = scores_np[0, 0]
-        elif scores_np.ndim == 3:
-            scores_np = scores_np[0]
-        normalized_scores.append(scores_np)
+    normalized_scores = normalize_attention_scores(scores_list)
+    avg_scores, avg_labels = get_average_attention_data(
+        scores_list=scores_list,
+        token_labels=token_labels,
+    )
 
     if len(token_labels) > 0 and isinstance(token_labels[0], list):
         labels_per_plot = token_labels
     else:
         labels_per_plot = [token_labels for _ in normalized_scores]
 
-    total_cells = len(normalized_scores) + 3
-    n_cols = max(4, math.ceil(math.sqrt(total_cells)))
-    n_rows = max(3, math.ceil(total_cells / n_cols))
+    n_cols = 4
+    n_rows = 2 + math.ceil((len(normalized_scores) - 1) / n_cols)
 
     fig = plt.figure(figsize=(4 * n_cols, 3.5 * n_rows))
     grid = fig.add_gridspec(n_rows, n_cols)
 
-    used_cells = {(0, 0), (0, 1), (1, 0), (1, 1)}
-    large_ax = fig.add_subplot(grid[0:2, 0:2])
+    example_ax = fig.add_subplot(grid[0:2, 0:2])
     sns.heatmap(
         normalized_scores[0],
         xticklabels=labels_per_plot[0],
         yticklabels=labels_per_plot[0],
         cmap='Blues',
-        ax=large_ax,
+        ax=example_ax,
     )
-    large_ax.set_xlabel('Key (attending to)')
-    large_ax.set_ylabel('Query (attending from)')
+    example_ax.set_xlabel('Key (attending to)')
+    example_ax.set_ylabel('Query (attending from)')
     large_title = 'Example 1'
     if probabilities is not None:
         large_title += f'\nP(correct) = {probabilities[0]:.3f}%'
-    large_ax.set_title(large_title, pad=16)
+    example_ax.set_title(large_title, pad=16)
+
+    average_ax = fig.add_subplot(grid[0:2, 2:4])
+    sns.heatmap(
+        avg_scores,
+        xticklabels=avg_labels,
+        yticklabels=avg_labels,
+        cmap='Blues',
+        ax=average_ax,
+    )
+    average_ax.set_xlabel('Key (attending to)')
+    average_ax.set_ylabel('Query (attending from)')
+    average_title = 'Average'
+    if probabilities is not None:
+        average_title += f'\nMean P(correct) = {np.mean(probabilities):.3f}%'
+    average_ax.set_title(average_title, pad=16)
 
     remaining_positions = []
-    for row_idx in range(n_rows):
+    for row_idx in range(2, n_rows):
         for col_idx in range(n_cols):
-            if (row_idx, col_idx) not in used_cells:
-                remaining_positions.append((row_idx, col_idx))
+            remaining_positions.append((row_idx, col_idx))
 
     for idx, (scores_np, labels) in enumerate(
         zip(normalized_scores[1:], labels_per_plot[1:], strict=False),

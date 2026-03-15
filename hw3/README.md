@@ -33,9 +33,7 @@ Overall, the heatmaps look surprisingly similar. I was expecting the attention m
 ### e. Document any modifications you made to the code to produce your attention heatmaps.
 
 - Added capture of attention tensors inside `attention()` using globals (`last_scores`, `last_output`) and a rolling buffer (`last_10_scores`) for multi-example averaging.
-- Added `plot_attention()` to show an attention heatmap of a single example inference run.
-- Added `plot_attention_grid()` to show heatmaps of a set of inference runs.
-- Added `plot_attention_average()` to show an attention heatmap averaged across multiple examples, which is intended to let me get a sense of shared performance without looking at 10 separate plots. This is also shown in `plot_attention_grid()`
+- Added `plot_attention_grid()` to show heatmaps of a set of inference runs, as well as an attention heatmap averaged across all given examples.
 - Integrated these plotting calls in `example()` to render both a single-example heatmap for the last input, and an averaged heatmap for all 10 inputs (for both good and bad)
 
 ## Part 3
