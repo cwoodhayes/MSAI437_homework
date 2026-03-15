@@ -46,6 +46,6 @@ Also of note is that the no-peek mask is clearly visible as an upper right trian
 
 - Added capture of attention tensors inside `attention()` using globals (`last_scores`, `last_output`) and a rolling buffer (`last_10_scores`) for multi-example averaging.
 - Added `plot_attention_grid()` to show heatmaps of a set of inference runs, as well as an attention heatmap averaged across all given examples.
-- Integrated these plotting calls in `example()` to render both a single-example heatmap for the last input, and an averaged heatmap for all 10 inputs (for both good and bad)
+- Integrated these plotting calls in `example()` to render both a single-example heatmap for the last input, and an averaged heatmap for all 10 inputs (for both good and bad). Also refactored some code into helper functions for cleanliness.
 
 ## Part 3

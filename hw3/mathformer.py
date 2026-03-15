@@ -32,6 +32,9 @@ last_scores = None
 last_output = None
 last_10_scores = deque(maxlen=10)
 
+focus_index = 0
+focus_gain = 1.0
+
 
 def read_encode(file_name, vocab, words, corpus, threshold):
     wID = len(vocab)
@@ -198,6 +201,10 @@ def attention(
                 # -inf
                 scaled = -1e9
             sm_input[0][0][token_idx][other_tok_idx] = scaled
+
+    # for part 3 - apply a manual adjustment to the softmax input for
+    # a token we know we want to focus on, for all tokens attending to it.
+    sm_input[0][0][:][focus_index] *= focus_gain
 
     # now take softmax. each row is probability weighting for a token,
     # across all tokens.
@@ -468,6 +475,7 @@ def plot_attention(
     ax.set_title(actual_title)
     plt.tight_layout()
     plt.savefig(f'{title}.png')
+    plt.close(fig)
 
 
 def normalize_attention_scores(
@@ -548,6 +556,7 @@ def plot_attention_average(
     else:
         plt.tight_layout()
     plt.savefig(f'{title}.png')
+    plt.close(fig)
 
 
 def plot_attention_grid(
@@ -646,6 +655,7 @@ def plot_attention_grid(
     else:
         plt.tight_layout(rect=(0, 0, 1, 0.96))
     plt.savefig(f'{title}_grid.png')
+    plt.close(fig)
 
 
 def select_good_and_bad_examples(opt) -> tuple[list[int], list[int]]:
@@ -699,8 +709,7 @@ def run_examples_and_plot(
     avg = 0.0
     token_labels = []
     probabilities = []
-
-    last_10_scores.clear()
+    scores_for_examples = []
 
     for i in example_indices:
         trg = torch.zeros((1, opt.seqlen), dtype=torch.long)
@@ -717,22 +726,30 @@ def run_examples_and_plot(
         trg = trg.cuda()
         ans = ans.cuda()
 
-        [d_output, preds] = model(trg, mask)
-        logits = torch.exp(preds[:, 18, :])
-        numer = torch.sum(logits * ans, dim=1)
-        denom = torch.sum(logits, dim=1)
-        probs = numer / denom
+        with torch.no_grad():
+            [d_output, preds] = model(trg, mask)
+            logits = torch.exp(preds[:, 18, :])
+            numer = torch.sum(logits * ans, dim=1)
+            denom = torch.sum(logits, dim=1)
+            probs = numer / denom
+
+        if last_scores is None:
+            raise RuntimeError('attention scores were not captured')
+        scores_for_examples.append(last_scores.detach().cpu().numpy())
 
         if include_top3:
             _, top3 = torch.topk(logits, k=3)
+            top3_idx0 = int(top3[0, 0].item())
+            top3_idx1 = int(top3[0, 1].item())
+            top3_idx2 = int(top3[0, 2].item())
             print(
                 '%s %7.3f%% %5s %5s %5s'
                 % (
                     text,
                     100.0 * probs[0].item(),
-                    opt.vocab[top3[0, 0]],
-                    opt.vocab[top3[0, 1]],
-                    opt.vocab[top3[0, 2]],
+                    opt.vocab[top3_idx0],
+                    opt.vocab[top3_idx1],
+                    opt.vocab[top3_idx2],
                 )
             )
         else:
@@ -747,12 +764,11 @@ def run_examples_and_plot(
     )
     print(' ')
 
-    if last_scores is None or last_output is None or not token_labels:
+    if last_output is None or not token_labels or not scores_for_examples:
         raise RuntimeError('should be unreachable')
 
-    scores = [sc.detach().cpu().numpy() for sc in last_10_scores]
     plot_attention_grid(
-        scores_list=scores,
+        scores_list=scores_for_examples,
         token_labels=token_labels,
         probabilities=probabilities,
         title=f'Attention Grid for {example_kind} Examples',
@@ -760,7 +776,7 @@ def run_examples_and_plot(
     )
     avg_prob = 100.0 * avg / float(len(example_indices))
     plot_attention_average(
-        scores_list=scores,
+        scores_list=scores_for_examples,
         token_labels=token_labels,
         title=f'Average Attention Heatmap for {example_kind} Examples',
         subtitle=f'Average of 10 examples (avg prob. of correct ans = {avg_prob:7.3f}%)',  # noqa: E501
@@ -797,6 +813,22 @@ def example(model, opt):
         mask=mask,
         example_indices=bad,
         example_kind='BAD',
+        include_top3=True,
+    )
+
+    # part 3 - rerun with the focus adjusted to pay attention to operand b.
+    # see hw3/README.md for explanation.
+    global focus_index
+    global focus_gain
+    # position of the "b" value since we focus on b*b
+    focus_index = 4
+    focus_gain = 2.0
+    run_examples_and_plot(
+        model=model,
+        opt=opt,
+        mask=mask,
+        example_indices=bad,
+        example_kind='ADJUSTED',
         include_top3=True,
     )
 
