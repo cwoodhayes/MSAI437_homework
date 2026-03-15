@@ -13,10 +13,10 @@ To generate the plots shown below, run this command:
 python mathformer.py -d_model 128 -seqlen 20 -loadname weights_128 -n_layers 1 -heads 1
 ```
 
-![Attention Heatmaps for GOOD examples](/hw3/Attention%20Grid%20for%20GOOD%20Examples_grid.png)
+![Attention Heatmaps for GOOD examples](Attention%20Grid%20for%20GOOD%20Examples_grid.png)
 > **Good Examples (above)**: Attention heatmaps for 10 input examples in which the correct answer token was predicted with >80% proability, as well as an average heatmap across all 10.
 
-![Attention Heatmaps for BAD examples](/hw3/Attention%20Grid%20for%20BAD%20Examples_grid.png)
+![Attention Heatmaps for BAD examples](Attention%20Grid%20for%20BAD%20Examples_grid.png)
 > **Bad examples (above)**: Attention heatmaps for 10 input examples in which the correct answer token was predicted with <5% proability, as well as an average heatmap across all 10.
 
 ### a. Describe your selection criteria for both the "good" and "bad" observations,
@@ -62,5 +62,5 @@ Obviously, this approach is tailored specifically to this particular input opera
 
 However, it's an interesting think to observe and mess around with in a pet environment like this.
 
-![Attention Heatmaps for IMPROVED examples](/hw3/Attention%20Grid%20for%20IMPROVED%20Examples_grid.png)
+![Attention Heatmaps for IMPROVED examples](Attention%20Grid%20for%20IMPROVED%20Examples_grid.png)
 > **Improved examples (above)**: Attention heatmaps for the 10 bad input examples in which the correct answer token was originally predicted with <5% proability, with the augmentation described above applied, resulting in a 79% average score improvement.
