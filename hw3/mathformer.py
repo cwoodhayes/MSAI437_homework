@@ -16,6 +16,9 @@ import torch.nn.functional as F
 import torch.nn as nn
 from torch.autograd import Variable
 
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 
 # def OutText(text,opt,screen=True):
 #    if screen:
@@ -439,6 +442,32 @@ def get_modelGPT(opt, vocab_size):
     return model
 
 
+def plot_attention(
+    scores: np.ndarray,
+    token_labels: list,
+    title='Attention Heatmap',
+    subtitle: str | None = None,
+):
+    # scores should be shape [20, 20] numpy array
+    fig, ax = plt.subplots(figsize=(10, 8))
+    sns.heatmap(
+        scores,
+        xticklabels=token_labels,
+        yticklabels=token_labels,
+        cmap='Blues',
+        ax=ax,
+    )
+    ax.set_xlabel('Key (attending to)')
+    ax.set_ylabel('Query (attending from)')
+    actual_title = title
+    if subtitle is not None:
+        actual_title += '\n"' + subtitle + '"'
+    ax.set_title(actual_title)
+    plt.tight_layout()
+    plt.savefig(f'{title}.png')
+    plt.show()
+
+
 def example(model, opt):
     model.eval()
 
@@ -461,6 +490,8 @@ def example(model, opt):
 
     print('GOOD Examples:')
     avg = 0.0
+    good_token_labels = None
+    good_example_text = None
     for i in good:
         trg = torch.zeros((bb, aa), dtype=torch.long)
         ans = torch.zeros((bb, opt.vocab_size), dtype=torch.float)
@@ -470,6 +501,8 @@ def example(model, opt):
             if j == 19:
                 ans[0, trg[0, j]] = 1.0
             text = decode_formula(opt, trg)
+        good_token_labels = [opt.vocab[int(token_id)] for token_id in trg[0]]
+        good_example_text = text
         trg = trg.cuda()
         ans = ans.cuda()
 
@@ -487,6 +520,20 @@ def example(model, opt):
     )
     print(' ')
 
+    if (
+        last_scores is not None
+        and last_output is not None
+        and good_token_labels is not None
+        and good_example_text is not None
+    ):
+        plot_attention(
+            last_scores[0, 0].detach().cpu().numpy(),
+            token_labels=good_token_labels,
+            title='Attention Heatmap for GOOD Example',
+            subtitle=good_example_text,
+        )
+    else:
+        raise RuntimeError('should be unreachable')
     # Add code to capture (and display) data for your attention heat map
     # for good examples here.
 
@@ -554,7 +601,7 @@ def decode_formula(opt, trg):
 
 
 def run_single(model, opt, obs_idx):
-    """Run on just one observation."""
+    """Run on just one observation. Used for part 1."""
 
     def write_matrix(file_name, matrix):
         with open(file_name, 'w') as f:
