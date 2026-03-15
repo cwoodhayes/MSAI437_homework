@@ -472,7 +472,7 @@ def plot_attention(
 
 def plot_attention_multiple(
     scores_list: list[np.ndarray],  # list of 20x20 arrays
-    token_labels: list,
+    token_labels: list[str],
     title='Attention Heatmap',
     subtitle: str | None = None,
 ):
@@ -528,6 +528,83 @@ def plot_attention_multiple(
     else:
         plt.tight_layout()
     plt.savefig(f'{title}.png')
+
+
+def plot_attention_grid(
+    scores_list: list[np.ndarray],  # list of 20x20 arrays
+    token_labels: list[str],
+    title='Attention Heatmap',
+    subtitle: str | None = None,
+):
+    """Plot all individual attention heatmaps in a grid."""
+    if len(scores_list) == 0:
+        raise ValueError('scores_list must contain at least one score matrix')
+
+    normalized_scores = []
+    for scores in scores_list:
+        scores_np = np.asarray(scores)
+        if scores_np.ndim == 4:
+            scores_np = scores_np[0, 0]
+        elif scores_np.ndim == 3:
+            scores_np = scores_np[0]
+        normalized_scores.append(scores_np)
+
+    if len(token_labels) > 0 and isinstance(token_labels[0], list):
+        labels_per_plot = token_labels
+    else:
+        labels_per_plot = [token_labels for _ in normalized_scores]
+
+    total_cells = len(normalized_scores) + 3
+    n_cols = max(4, math.ceil(math.sqrt(total_cells)))
+    n_rows = max(3, math.ceil(total_cells / n_cols))
+
+    fig = plt.figure(figsize=(4 * n_cols, 3.5 * n_rows))
+    grid = fig.add_gridspec(n_rows, n_cols)
+
+    used_cells = {(0, 0), (0, 1), (1, 0), (1, 1)}
+    large_ax = fig.add_subplot(grid[0:2, 0:2])
+    sns.heatmap(
+        normalized_scores[0],
+        xticklabels=labels_per_plot[0],
+        yticklabels=labels_per_plot[0],
+        cmap='Blues',
+        ax=large_ax,
+    )
+    large_ax.set_xlabel('Key (attending to)')
+    large_ax.set_ylabel('Query (attending from)')
+    large_ax.set_title('Example 1', pad=16)
+
+    remaining_positions = []
+    for row_idx in range(n_rows):
+        for col_idx in range(n_cols):
+            if (row_idx, col_idx) not in used_cells:
+                remaining_positions.append((row_idx, col_idx))
+
+    for idx, (scores_np, labels) in enumerate(
+        zip(normalized_scores[1:], labels_per_plot[1:], strict=False),
+        start=1,
+    ):
+        row_idx, col_idx = remaining_positions[idx - 1]
+        ax = fig.add_subplot(grid[row_idx, col_idx])
+        sns.heatmap(
+            scores_np,
+            xticklabels=False,
+            yticklabels=False,
+            cmap='Blues',
+            cbar=False,
+            ax=ax,
+        )
+        ax.set_title(f'Example {idx + 1}', fontsize=10)
+        ax.set_xlabel('')
+        ax.set_ylabel('')
+
+    fig.suptitle(title, y=0.995, fontsize=14)
+    if subtitle is not None:
+        fig.text(0.5, 0.965, subtitle, ha='center', va='top', fontsize=10)
+        plt.tight_layout(rect=(0, 0, 1, 0.93))
+    else:
+        plt.tight_layout(rect=(0, 0, 1, 0.96))
+    plt.savefig(f'{title}_grid.png')
 
 
 def select_good_and_bad_examples(opt) -> tuple[list[int], list[int]]:
@@ -631,13 +708,13 @@ def example(model, opt):
         and good_token_labels
         and good_example_text
     ):
-        plot_attention(
-            last_scores[0, 0].detach().cpu().numpy(),
-            token_labels=good_token_labels[-1],
-            title='Attention Heatmap for GOOD Example',
-            subtitle=good_example_text[-1],
-        )
         scores = [sc.detach().cpu().numpy() for sc in last_10_scores]
+        plot_attention_grid(
+            scores_list=scores,
+            token_labels=good_token_labels,
+            title='Attention Grid for GOOD Examples',
+            subtitle='All 10 selected good examples',
+        )
         avg_prob = 100.0 * avg / float(len(good))
         plot_attention_multiple(
             scores_list=scores,
@@ -698,13 +775,13 @@ def example(model, opt):
         and bad_token_labels
         and bad_example_text
     ):
-        plot_attention(
-            last_scores[0, 0].detach().cpu().numpy(),
-            token_labels=bad_token_labels[-1],
-            title='Attention Heatmap for BAD Example',
-            subtitle=bad_example_text[-1],
-        )
         scores = [sc.detach().cpu().numpy() for sc in last_10_scores]
+        plot_attention_grid(
+            scores_list=scores,
+            token_labels=bad_token_labels,
+            title='Attention Grid for BAD Examples',
+            subtitle='All 10 selected bad examples',
+        )
         avg_prob = 100.0 * avg / float(len(bad))
         plot_attention_multiple(
             scores_list=scores,
