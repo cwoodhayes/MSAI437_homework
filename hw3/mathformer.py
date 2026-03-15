@@ -532,11 +532,52 @@ def plot_attention_multiple(
     plt.show()
 
 
+def select_good_and_bad_examples(opt) -> tuple[list[int], list[int]]:
+    """
+    Return first 10 good/bad b*b example indices from results.txt.
+
+    good examples have correct-answer probability > 50%
+    bad examples < 5%.
+    """
+    good = []
+    bad = []
+    high_thresh = 50.0
+    low_thresh = 5.0
+
+    with open('results.txt', 'rt') as f:
+        for obs_idx, line in enumerate(f):
+            if '[EQ] ans = b * b' not in line:
+                continue
+
+            try:
+                prob = float(line.split()[-1].rstrip('%'))
+            except (IndexError, ValueError):
+                continue
+
+            if prob > high_thresh and len(good) < 10:
+                good.append(obs_idx)
+            if prob < low_thresh and len(bad) < 10:
+                bad.append(obs_idx)
+
+            if len(good) == 10 and len(bad) == 10:
+                break
+
+    if len(good) < 10 or len(bad) < 10:
+        raise RuntimeError(
+            'Could not find enough examples in results.txt '
+            f'(good={len(good)}, bad={len(bad)})'
+        )
+
+    return good, bad
+
+
 def example(model, opt):
     model.eval()
 
-    good = [1067, 701, 1979, 1005, 2041, 658, 1740, 606, 1707, 42]
-    bad = [946, 1322, 2487, 314, 1445, 127, 1959, 2344, 1947, 2105, 1441, 885]
+    # good = [1067, 701, 1979, 1005, 2041, 658, 1740, 606, 1707, 42]
+    # bad = [946, 1322, 2487, 314, 1445, 127, 1959,
+    # 2344, 1947, 2105, 1441, 885]
+    good, bad = select_good_and_bad_examples(opt)
 
     aa = opt.seqlen
     bb = 1
