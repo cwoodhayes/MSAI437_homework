@@ -133,12 +133,12 @@ class Norm(nn.Module):
 
 
 def attention(
-    q: np.ndarray,
-    k: np.ndarray,
-    v: np.ndarray,
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
     d_k: int,
     p: float,
-    mask: np.ndarray | None,
+    mask: torch.Tensor | None,
     dropout=None,
 ):
     """
@@ -155,50 +155,57 @@ def attention(
         dropout: ignored.
 
     Returns:
-        np.ndarray of shape (batch_len=1, n_heads=1, seq_len=20, d_k).
+        torch.Tensor of shape (batch_len=1, n_heads=1, seq_len=20, d_k).
         this is "sum" in slides.
 
     """
-    scores = np.zeros((1, 1, 20, 20), float)
-    output = np.zeros((1, 1, 20, d_k), float)
-    scores = torch.from_numpy(scores).to(q.device).float()
-    output = torch.from_numpy(output).to(q.device).float()
+    seq_len = q.shape[2]
+    scores = torch.zeros((1, 1, seq_len, seq_len), device=q.device)
+    output = torch.zeros((1, 1, seq_len, d_k), device=q.device)
     if mask is None:
         # if no mask, everything passed through
-        mask = np.ones_like(scores)
+        mask = torch.ones_like(scores)
+    else:
+        if mask.dim() == 3:
+            mask = mask.unsqueeze(1)
+        mask = mask.to(device=q.device, dtype=torch.float32)
 
     # z = softmax(KQ^T / sqrt(d_k)) @ V
     # doing this in for loops per assignment
     # first let's get input to softmax (k dot q / sqrt)
-    sm_input = np.empty_like(output)
+    sm_input = torch.zeros((1, 1, seq_len, seq_len), device=q.device)
     for token_idx in range(q.shape[2]):
-        for val_idx in range(q.shape[3]):
-            sm_input[0][0][token_idx][val_idx] = (
-                q[0][0][token_idx][val_idx]
-                * k[0][0][token_idx][val_idx]
-                / np.sqrt(d_k)
-                * mask[0][0][token_idx][token_idx]
+        for other_tok_idx in range(q.shape[2]):
+            dot = 0
+            for val_idx in range(q.shape[3]):
+                dot += (
+                    q[0][0][token_idx][val_idx]
+                    * k[0][0][other_tok_idx][val_idx]
+                )
+            sm_input[0][0][token_idx][other_tok_idx] = (
+                dot / math.sqrt(d_k) * mask[0][0][token_idx][other_tok_idx]
             )
 
     # now take softmax. each row is probability weighting for a token,
     # across all tokens.
     for token_idx in range(sm_input.shape[2]):
         denom = 0
-        for other_tok_idx in sm_input.shape[2]:
-            denom += np.exp(sm_input[0][0][token_idx][other_tok_idx])
-        for other_tok_idx in sm_input.shape[2]:
+        for other_tok_idx in range(sm_input.shape[2]):
+            denom += torch.exp(sm_input[0][0][token_idx][other_tok_idx])
+        for other_tok_idx in range(sm_input.shape[2]):
             scores[0][0][token_idx][other_tok_idx] = (
-                np.exp(sm_input[0][0][token_idx][other_tok_idx]) / denom
+                torch.exp(sm_input[0][0][token_idx][other_tok_idx]) / denom
             )
 
     # multiply softmax by V matrix.
     # this weights the values by the sm outputs
     # and then sum all the values for each token, elementwise
     for token_idx in range(output.shape[2]):
-        for sm_weight in scores[0][0][token_idx]:
+        for other_tok_idx in range(scores.shape[3]):
+            sm_weight = scores[0][0][token_idx][other_tok_idx]
             for val_idx in range(d_k):
                 output[0][0][token_idx][val_idx] += (
-                    sm_weight * v[0][0][token_idx][val_idx]
+                    sm_weight * v[0][0][other_tok_idx][val_idx]
                 )
 
     return output
