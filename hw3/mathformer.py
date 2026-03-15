@@ -132,7 +132,33 @@ class Norm(nn.Module):
         return norm
 
 
-def attention(q, k, v, d_k, p, mask=None, dropout=None):
+def attention(
+    q: np.ndarray,
+    k: np.ndarray,
+    v: np.ndarray,
+    d_k: int,
+    p: float,
+    mask=None,
+    dropout=None,
+):
+    """
+    Attention mechanism used by MultiHeadAttention.
+
+    Args:
+        q: query vector. shape = (batch_len=1, n_heads=1, seq_len=20, d_k)
+        k: key vector. shape = (batch_len=1, n_heads=1, seq_len=20, d_k)
+        v: value vector. shape = (batch_len=1, n_heads=1, seq_len=20, d_k)
+        d_k: dimension of each head
+        p: ignored.
+        mask: attention mask. shape =
+            (batch_len=1, n_heads=1, seq_len=20, seq_len=20)
+        dropout: ignored.
+
+    Returns:
+        np.ndarray of shape (batch_len=1, n_heads=1, seq_len=20, d_k).
+        this is "sum" in slides.
+
+    """
     scores = np.zeros((1, 1, 20, 20), float)
     outout = np.zeros((1, 1, 20, d_k), float)
     scores = torch.from_numpy(scores).to(q.device).float()
