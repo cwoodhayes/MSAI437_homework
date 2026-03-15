@@ -24,6 +24,9 @@ from torch.autograd import Variable
 #        outFile = open(opt.log_file,"a+")
 #        outFile.write(text+"\n")
 
+last_scores = None
+last_output = None
+
 
 def read_encode(file_name, vocab, words, corpus, threshold):
     wID = len(vocab)
@@ -159,6 +162,9 @@ def attention(
         this is "sum" in slides.
 
     """
+    global last_output
+    global last_scores
+
     seq_len = q.shape[2]
     scores = torch.zeros((1, 1, seq_len, seq_len), device=q.device)
     output = torch.zeros((1, 1, seq_len, d_k), device=q.device)
@@ -210,6 +216,8 @@ def attention(
                     sm_weight * v[0][0][other_tok_idx][val_idx]
                 )
 
+    last_scores = scores
+    last_output = output
     return output
 
 
@@ -564,6 +572,20 @@ def run_single(model, opt, obs_idx):
         [d_output, preds] = model(trg, mask)
 
     print(text)
+
+    import pandas as pd
+
+    if last_scores is not None and last_output is not None:
+        scores_np = last_scores[0, 0].detach().cpu().numpy()
+        output_np = last_output[0, 0].detach().cpu().numpy()
+        pd.DataFrame(scores_np).to_csv(
+            f'cwh_{obs_idx}_scores_{opt.d_model}.csv', index=False
+        )
+        pd.DataFrame(output_np).to_csv(
+            f'cwh_{obs_idx}_output_{opt.d_model}.csv', index=False
+        )
+    else:
+        raise RuntimeError('unreachable')
 
 
 def main():
