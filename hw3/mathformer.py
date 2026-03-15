@@ -687,6 +687,86 @@ def select_good_and_bad_examples(opt) -> tuple[list[int], list[int]]:
     return good, bad
 
 
+def run_examples_and_plot(
+    model,
+    opt,
+    mask,
+    example_indices: list[int],
+    example_kind: str,
+    include_top3: bool = False,
+):
+    print(f'{example_kind} Examples:')
+    avg = 0.0
+    token_labels = []
+    probabilities = []
+
+    last_10_scores.clear()
+
+    for i in example_indices:
+        trg = torch.zeros((1, opt.seqlen), dtype=torch.long)
+        ans = torch.zeros((1, opt.vocab_size), dtype=torch.float)
+        text = ''
+        for j in range(opt.seqlen):
+            trg[0, j] = opt.test[i * opt.seqlen + j]
+            if j == 19:
+                ans[0, trg[0, j]] = 1.0
+            text = decode_formula(opt, trg)
+
+        token_labels.append([opt.vocab[int(token_id)] for token_id in trg[0]])
+
+        trg = trg.cuda()
+        ans = ans.cuda()
+
+        [d_output, preds] = model(trg, mask)
+        logits = torch.exp(preds[:, 18, :])
+        numer = torch.sum(logits * ans, dim=1)
+        denom = torch.sum(logits, dim=1)
+        probs = numer / denom
+
+        if include_top3:
+            _, top3 = torch.topk(logits, k=3)
+            print(
+                '%s %7.3f%% %5s %5s %5s'
+                % (
+                    text,
+                    100.0 * probs[0].item(),
+                    opt.vocab[top3[0, 0]],
+                    opt.vocab[top3[0, 1]],
+                    opt.vocab[top3[0, 2]],
+                )
+            )
+        else:
+            print('%s %7.3f%%' % (text, 100.0 * probs[0].item()))
+
+        probabilities.append(100.0 * probs[0].item())
+        avg = avg + probs[0].item()
+
+    print(
+        '                                                                       Average: %7.3f%%'  # noqa: E501
+        % (100.0 * avg / float(len(example_indices)))
+    )
+    print(' ')
+
+    if last_scores is None or last_output is None or not token_labels:
+        raise RuntimeError('should be unreachable')
+
+    scores = [sc.detach().cpu().numpy() for sc in last_10_scores]
+    plot_attention_grid(
+        scores_list=scores,
+        token_labels=token_labels,
+        probabilities=probabilities,
+        title=f'Attention Grid for {example_kind} Examples',
+        subtitle=f'All 10 selected {example_kind.lower()} examples',
+    )
+    avg_prob = 100.0 * avg / float(len(example_indices))
+    plot_attention_average(
+        scores_list=scores,
+        token_labels=token_labels,
+        title=f'Average Attention Heatmap for {example_kind} Examples',
+        subtitle=f'Average of 10 examples (avg prob. of correct ans = {avg_prob:7.3f}%)',  # noqa: E501
+    )
+
+
 def example(model, opt):
     model.eval()
 
@@ -698,146 +778,27 @@ def example(model, opt):
     aa = opt.seqlen
     bb = 1
     opt.bb = bb
-    offsets = []
-    stride = int(len(opt.test) / bb)
-    while (stride % 20) > 0:
-        stride = stride - 1
-    for i in range(0, len(opt.test), stride):
-        offsets.append(i)
 
     nopeak_mask = np.triu(np.ones((bb, aa, aa), dtype=np.int32), k=1)
     mask = Variable(torch.from_numpy(nopeak_mask) == 0)
     mask = mask.cuda()
 
-    print('GOOD Examples:')
-    avg = 0.0
-    good_token_labels = []
-    good_example_text = []
-    good_probabilities = []
-    for i in good:
-        trg = torch.zeros((bb, aa), dtype=torch.long)
-        ans = torch.zeros((bb, opt.vocab_size), dtype=torch.float)
-        text = ''
-        for j in range(aa):
-            trg[0, j] = opt.test[i * aa + j]
-            if j == 19:
-                ans[0, trg[0, j]] = 1.0
-            text = decode_formula(opt, trg)
-        good_token_labels.append(
-            [opt.vocab[int(token_id)] for token_id in trg[0]]
-        )
-        good_example_text.append(text)
-        trg = trg.cuda()
-        ans = ans.cuda()
-
-        [d_output, preds] = model(trg, mask)
-        logits = torch.exp(preds[:, 18, :])
-        numer = logits * ans
-        numer = torch.sum(numer, dim=1)
-        denom = torch.sum(logits, dim=1)
-        probs = numer / denom
-        print('%s %7.3f%%' % (text, 100.0 * probs[0].item()))
-        good_probabilities.append(100.0 * probs[0].item())
-        avg = avg + probs[0].item()
-    print(
-        '                                                                       Average: %7.3f%%'  # noqa: E501
-        % (100.0 * avg / float(len(good)))
+    run_examples_and_plot(
+        model=model,
+        opt=opt,
+        mask=mask,
+        example_indices=good,
+        example_kind='GOOD',
+        include_top3=False,
     )
-    print(' ')
-
-    if (
-        last_scores is not None
-        and last_output is not None
-        and good_token_labels
-        and good_example_text
-    ):
-        scores = [sc.detach().cpu().numpy() for sc in last_10_scores]
-        plot_attention_grid(
-            scores_list=scores,
-            token_labels=good_token_labels,
-            probabilities=good_probabilities,
-            title='Attention Grid for GOOD Examples',
-            subtitle='All 10 selected good examples',
-        )
-        avg_prob = 100.0 * avg / float(len(good))
-        plot_attention_average(
-            scores_list=scores,
-            token_labels=good_token_labels,
-            title='Average Attention Heatmap for GOOD Examples',
-            subtitle=f'Average of 10 examples (avg prob. of correct ans = {avg_prob:7.3f}%)',  # noqa: E501
-        )
-    else:
-        raise RuntimeError('should be unreachable')
-
-    print('BAD Examples:')
-    avg = 0.0
-    bad_token_labels = []
-    bad_example_text = []
-    bad_probabilities = []
-    for i in bad:
-        trg = torch.zeros((bb, aa), dtype=torch.long)
-        ans = torch.zeros((bb, opt.vocab_size), dtype=torch.float)
-        text = ''
-        for j in range(aa):
-            trg[0, j] = opt.test[i * aa + j]
-            if j == 19:
-                ans[0, trg[0, j]] = 1.0
-            text = decode_formula(opt, trg)
-        bad_token_labels.append(
-            [opt.vocab[int(token_id)] for token_id in trg[0]]
-        )
-        bad_example_text.append(text)
-        trg = trg.cuda()
-        ans = ans.cuda()
-
-        [d_output, preds] = model(trg, mask)
-        logits = torch.exp(preds[:, 18, :])
-        numer = logits * ans
-        numer = torch.sum(numer, dim=1)
-        denom = torch.sum(logits, dim=1)
-        probs = numer / denom
-        top3_values, top3 = torch.topk(logits, k=3)
-        print(
-            '%s %7.3f%% %5s %5s %5s'
-            % (
-                text,
-                100.0 * probs[0].item(),
-                opt.vocab[top3[0, 0]],
-                opt.vocab[top3[0, 1]],
-                opt.vocab[top3[0, 2]],
-            )
-        )
-        bad_probabilities.append(100.0 * probs[0].item())
-        avg = avg + probs[0].item()
-    print(
-        '                                                                       Average: %7.3f%%'  # noqa: E501
-        % (100.0 * avg / float(len(bad)))
+    run_examples_and_plot(
+        model=model,
+        opt=opt,
+        mask=mask,
+        example_indices=bad,
+        example_kind='BAD',
+        include_top3=True,
     )
-    print(' ')
-
-    if (
-        last_scores is not None
-        and last_output is not None
-        and bad_token_labels
-        and bad_example_text
-    ):
-        scores = [sc.detach().cpu().numpy() for sc in last_10_scores]
-        plot_attention_grid(
-            scores_list=scores,
-            token_labels=bad_token_labels,
-            probabilities=bad_probabilities,
-            title='Attention Grid for BAD Examples',
-            subtitle='All 10 selected bad examples',
-        )
-        avg_prob = 100.0 * avg / float(len(bad))
-        plot_attention_average(
-            scores_list=scores,
-            token_labels=bad_token_labels,
-            title='Average Attention Heatmap for BAD Examples',
-            subtitle=f'Average of 10 examples (avg prob. of correct ans = {avg_prob:7.3f}%)',  # noqa: E501
-        )
-    else:
-        raise RuntimeError('should be unreachable')
 
     if opt.show_plots:
         plt.show()

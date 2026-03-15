@@ -34,7 +34,7 @@ Done; see CLI output from command above.
 
 ### d. Interpret these results to explain the observed differences in performance between “good” and “bad” observation subsets
 
-Overall, the heatmaps look surprisingly similar. I was expecting the attention maps to be substantially different between the two, and for the bad results to show extremely disordered. However, there is one key difference that points to a specific pathology in (at least most) bad results:
+Overall, the heatmaps look surprisingly similar. I was expecting the attention maps to be substantially different between the two, and for the bad results to show extremely disordered attention across the board. However, there is only one obvious difference that points to a specific pathology in (at least most) bad results:
 
 Good results focus attention primarily on input `b`, while bad results focus attention on other operands or diffusely across some set of them without particular focus on `b` (or, in the case of Example 5, on no operands at all). Other operands are irrelevant to the `b * b` problem, so they should be ignored. 
 Interestingly, although all successful answers focus mostly on `b` of the 4, many include additional focus on a 2nd operand. This makes sense, as most of the training data contains binary operations on 2 different operands rather than the same one twice.
