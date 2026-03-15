@@ -204,7 +204,7 @@ def attention(
 
     # for part 3 - apply a manual adjustment to the softmax input for
     # a token we know we want to focus on, for all tokens attending to it.
-    sm_input[0][0][:][focus_index] *= focus_gain
+    sm_input[0, 0, :, focus_index] *= focus_gain
 
     # now take softmax. each row is probability weighting for a token,
     # across all tokens.
