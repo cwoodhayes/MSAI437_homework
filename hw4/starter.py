@@ -265,7 +265,7 @@ class PixelDDPM(nn.Module):
         sqrt_alphas = torch.sqrt(alphas)
         sqrt_alpha_bars = torch.sqrt(alpha_bars)
         sqrt_one_minus_alpha_bars = torch.sqrt(1 - alpha_bars)
-        sampling_epsilon_coeff = -(1 - alphas) / sqrt_one_minus_alpha_bars
+        sampling_epsilon_coeff = betas / sqrt_one_minus_alpha_bars
 
         self.register_buffer('_betas', betas)
         self.register_buffer('_alphas', alphas)
@@ -277,8 +277,8 @@ class PixelDDPM(nn.Module):
 
         # apparently this can also be more complicated to improve performance.
         # will revisit if the generation is bad.
-        posterior_variance = torch.sqrt(betas)
-        self.register_buffer('_posterior_variance', posterior_variance)
+        posterior_stddev = torch.sqrt(betas)
+        self.register_buffer('_posterior_stddev', posterior_stddev)
 
         # type hints. maybe there's a better way to do this?
         self._betas: torch.Tensor
@@ -288,7 +288,7 @@ class PixelDDPM(nn.Module):
         self._sqrt_alpha_bars: torch.Tensor
         self._sqrt_one_minus_alpha_bars: torch.Tensor
         self._sampling_epsilon_coeff: torch.Tensor
-        self._posterior_variance: torch.Tensor
+        self._posterior_stddev: torch.Tensor
 
     def q_sample(self, x0, t, noise=None):
         # Implement forward diffusion:
@@ -316,22 +316,17 @@ class PixelDDPM(nn.Module):
 
     @torch.no_grad()
     def p_sample(self, xt, t_scalar, model):
-        # TODO:
         # Implement one reverse diffusion step.
         # Use the DDPM reverse mean formula and add Gaussian noise
         # unless t_scalar == 0.
-        x_tmin1 = (
-            1
-            / self._sqrt_alphas[t_scalar]
-            * (
-                xt
-                - self._sampling_epsilon_coeff[t_scalar]
-                * model(xt, torch.tensor([t_scalar], device=xt.device))
-            )
+
+        t_full = torch.full((xt.shape[0],), t_scalar, device=xt.device, dtype=torch.long)
+        x_tmin1 = (1 / self._sqrt_alphas[t_scalar]) * (
+            xt - self._sampling_epsilon_coeff[t_scalar] * model(xt, t_full)
         )
         if t_scalar > 0:
             noise = torch.randn_like(xt)
-            x_tmin1 += self._posterior_variance[t_scalar] * noise
+            x_tmin1 += self._posterior_stddev[t_scalar] * noise
         return x_tmin1
 
     @torch.no_grad()
