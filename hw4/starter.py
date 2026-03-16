@@ -19,6 +19,7 @@ The goal is to focus on the diffusion process itself, specifically:
     d. the sampling process
 """
 
+import argparse
 import math
 import os
 import copy
@@ -350,9 +351,23 @@ class PixelDDPM(nn.Module):
         x_0 = (x_0.clamp(-1, 1) + 1) / 2
         fname = out_dir / 'epoch_{:06d}.png'.format(epoch)
         save_image(x_0, fname, nrow=n)
+        print('Saved sample grid to:', fname.resolve())
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Train a pixel-space DDPM on 64x64 faces.')
+    parser.add_argument(
+        '--checkpoint',
+        type=Path,
+        default=None,
+        help='Optional checkpoint to load before training resumes.',
+    )
+    return parser.parse_args()
 
 
 def main():
+    args = parse_args()
+
     random.seed(161)
     torch.manual_seed(161)
     torch.cuda.manual_seed_all(161)
@@ -392,18 +407,37 @@ def main():
 
     ema = EMA(EMA_BETA)
     optimizer = torch.optim.AdamW(ddpm.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+    best_loss = float('inf')
+    start_epoch = 1
+
+    if args.checkpoint is not None:
+        checkpoint_path = args.checkpoint.expanduser()
+        checkpoint = torch.load(checkpoint_path, map_location=DEVICE)
+        ddpm.load_state_dict(checkpoint['ddpm_state_dict'])
+
+        if 'ema_model_state_dict' in checkpoint:
+            ema_model.load_state_dict(checkpoint['ema_model_state_dict'])
+        if 'optimizer_state_dict' in checkpoint:
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+        best_loss = checkpoint.get('best_loss', best_loss)
+        start_epoch = checkpoint.get('epoch', 0) + 1
+        ema.step = checkpoint.get('ema_step', ema.step)
+
+        print('Loaded checkpoint from:', checkpoint_path.resolve())
+        print('Resuming from epoch:', start_epoch)
+        print('Best loss so far: {:.8f}'.format(best_loss))
 
     print('Total training images:', len(dataset))
     print('T = {}, LR = {}, BASE_CHANNELS = {}'.format(T, LR, BASE_CHANNELS))
     print('Sample grid every {} epochs'.format(SAVE_EVERY))
 
-    ddpm.eval()
-    ddpm.save_sample_grid(0, SAMPLES_DIR, ema_model)
-    print('Saved sample grid for epoch 0')
+    if start_epoch == 1:
+        ddpm.eval()
+        ddpm.save_sample_grid(0, SAMPLES_DIR, ema_model)
+        print('Saved sample grid for epoch 0')
 
-    best_loss = float('inf')
-
-    for epoch in range(1, EPOCHS + 1):
+    for epoch in range(start_epoch, EPOCHS + 1):
         start = time.time()
         ddpm.train()
         running_loss, n_seen = 0.0, 0
@@ -436,6 +470,7 @@ def main():
             'ema_model_state_dict': ema_model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'best_loss': best_loss,
+            'ema_step': ema.step,
         }
         torch.save(ckpt, OUT_DIR / 'pixel_diffusion_latest.pt')
 
