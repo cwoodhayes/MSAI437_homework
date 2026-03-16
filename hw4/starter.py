@@ -257,22 +257,58 @@ class PixelDDPM(nn.Module):
         # 5. Store them with self.register_buffer(...)
         # 6. Compute posterior_variance for reverse sampling
 
-        raise NotImplementedError('Students should implement PixelDDPM.__init__')
+        betas = torch.linspace(beta_start, beta_end, T)
+        alphas = 1 - betas
+        alpha_bars = torch.cumprod(alphas, dim=0)
+
+        # helpers
+        sqrt_alphas = torch.sqrt(alphas)
+        sqrt_one_minus_alpha_bars = torch.sqrt(1 - alpha_bars)
+        sampling_epsilon_coeff = -(1 - alphas) / sqrt_one_minus_alpha_bars
+
+        self.register_buffer('_betas', betas)
+        self.register_buffer('_alphas', alphas)
+        self.register_buffer('_alpha_bars', alpha_bars)
+        self.register_buffer('_sqrt_alphas', sqrt_alphas)
+        self.register_buffer('_sqrt_one_minus_alpha_bars', sqrt_one_minus_alpha_bars)
+        self.register_buffer('_sampling_epsilon_coeff', sampling_epsilon_coeff)
+
+        # apparently this can also be more complicated to improve performance.
+        # will revisit if the generation is bad.
+        posterior_variance = torch.sqrt(betas)
+        self.register_buffer('_posterior_variance', posterior_variance)
+
+        # type hints. maybe there's a better way to do this?
+        self._betas: torch.Tensor
+        self._alphas: torch.Tensor
+        self._alpha_bars: torch.Tensor
+        self._sqrt_alphas: torch.Tensor
+        self._sqrt_one_minus_alpha_bars: torch.Tensor
+        self._sampling_epsilon_coeff: torch.Tensor
+        self._posterior_variance: torch.Tensor
 
     def q_sample(self, x0, t, noise=None):
-        # TODO:
         # Implement forward diffusion:
         #   x_t = sqrt(alpha_bar_t) * x_0 + sqrt(1 - alpha_bar_t) * noise
         # Return x_t and the noise used.
-        raise NotImplementedError('Students should implement PixelDDPM.q_sample')
+        if noise is None:
+            noise = torch.randn_like(x0)
+        x_t = (
+            self._sqrt_alphas[t][:, None, None, None] * x0
+            + self._sqrt_one_minus_alpha_bars[t][:, None, None, None] * noise
+        )
+        return x_t, noise
 
     def forward(self, x0):
-        # TODO:
         # 1. Sample a random timestep for each image in the batch
         # 2. Call q_sample(x0, t)
         # 3. Predict the noise with self.eps_model(x_t, t)
         # 4. Return MSE(predicted_noise, true_noise)
-        raise NotImplementedError('Students should implement PixelDDPM.forward')
+
+        t = torch.randint(0, self.T, (1,), device=x0.device)
+        x_t, true_noise = self.q_sample(x0, t)
+        pred_noise = self.eps_model(x_t, t)
+        return F.mse_loss(pred_noise, true_noise)
 
     @torch.no_grad()
     def p_sample(self, xt, t_scalar, model):
@@ -280,22 +316,41 @@ class PixelDDPM(nn.Module):
         # Implement one reverse diffusion step.
         # Use the DDPM reverse mean formula and add Gaussian noise
         # unless t_scalar == 0.
-        raise NotImplementedError('Students should implement PixelDDPM.p_sample')
+        x_tmin1 = (
+            1
+            / self._sqrt_alphas[t_scalar]
+            * (
+                xt
+                - self._sampling_epsilon_coeff[t_scalar]
+                * model(xt, torch.tensor([t_scalar], device=xt.device))
+            )
+        )
+        if t_scalar > 0:
+            noise = torch.randn_like(xt)
+            x_tmin1 += self._posterior_variance[t_scalar] * noise
+        return x_tmin1
 
     @torch.no_grad()
     def sample(self, n, model):
-        # TODO:
+        # n is number of images to generate.
         # Start from pure Gaussian noise and repeatedly call p_sample
         # from timestep T-1 down to 0.
-        raise NotImplementedError('Students should implement PixelDDPM.sample')
+        x_t = torch.randn(
+            n, CHANNELS, IMAGE_SIZE, IMAGE_SIZE, device=next(model.parameters()).device
+        )
+        for t_scalar in reversed(range(self.T)):
+            x_t = self.p_sample(x_t, t_scalar, model)
+        return x_t
 
     @torch.no_grad()
     def save_sample_grid(self, epoch, out_dir, model, n=10):
-        # TODO:
         # Generate n images with self.sample(...)
         # Convert them from [-1,1] to [0,1]
         # Save them as a 1x10 strip using save_image(..., nrow=10)
-        raise NotImplementedError('Students should implement PixelDDPM.save_sample_grid')
+        x_0 = self.sample(n, model)
+        x_0 = (x_0.clamp(-1, 1) + 1) / 2
+        fname = out_dir / 'epoch_{:06d}.png'.format(epoch)
+        save_image(x_0, fname, nrow=n)
 
 
 def main():
