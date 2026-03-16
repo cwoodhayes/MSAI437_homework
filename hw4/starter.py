@@ -39,9 +39,9 @@ from torchvision.utils import save_image
 # These are the hyper-parameters that I used to generate my samples.  Please
 # feel free to experiment with different settings
 
-DATA_DIR = Path("faces64")
-OUT_DIR = Path("weights")
-SAMPLES_DIR = OUT_DIR / "samples"
+DATA_DIR = Path('faces64')
+OUT_DIR = Path('weights')
+SAMPLES_DIR = OUT_DIR / 'samples'
 
 IMAGE_SIZE = 64
 CHANNELS = 3
@@ -62,7 +62,7 @@ SAVE_EVERY = 50
 EMA_BETA = 0.995
 EMA_START = 200
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 # ImageDataset loads training images from the faces64 directory.
@@ -72,14 +72,15 @@ class ImageDataset(Dataset):
         self.transform = transform
         self.paths = sorted([p for p in self.root.iterdir() if p.is_file()])
         if not self.paths:
-            raise FileNotFoundError("No images found in {}".format(self.root.resolve()))
+            raise FileNotFoundError('No images found in {}'.format(self.root.resolve()))
 
     def __len__(self):
         return len(self.paths)
 
     def __getitem__(self, idx):
-        img = Image.open(self.paths[idx]).convert("RGB")
+        img = Image.open(self.paths[idx]).convert('RGB')
         return self.transform(img) if self.transform is not None else img
+
 
 # EMA() implements exponential moving average to add stability during training
 class EMA:
@@ -101,6 +102,7 @@ class EMA:
             self.update_model_average(ema_model, model)
         self.step += 1
 
+
 # SinusoidalTimeEmbedding maps each timestep t to a richer feature vector so the
 # U-Net can condition its predictions on where it is in the diffusion process.
 class SinusoidalTimeEmbedding(nn.Module):
@@ -116,6 +118,7 @@ class SinusoidalTimeEmbedding(nn.Module):
         args = t.float()[:, None] * freqs[None, :]
         emb = torch.cat([torch.sin(args), torch.cos(args)], dim=1)
         return F.pad(emb, (0, 1)) if self.dim % 2 else emb
+
 
 # SelfAttention lets the U-Net relate distant spatial positions in the feature
 # map, which helps it model long-range structure and global consistency.
@@ -140,6 +143,7 @@ class SelfAttention(nn.Module):
         y = y + self.ff(y)
         return y.transpose(1, 2).view(b, c, h, w)
 
+
 # ResidualBlock applies two convolutional layers to extract and refine features.
 # When residual=True, it also adds a skip connection so the U-Net can preserve
 # information and train more stably.
@@ -163,6 +167,7 @@ class ResidualBlock(nn.Module):
             return y
         return F.silu(y + (x if self.skip is None else self.skip(x)))
 
+
 # Down and Up are the encoder and decoder blocks of the U-Net. They change
 # spatial resolution, apply residual feature processing, and inject timestep information.
 class Down(nn.Module):
@@ -184,7 +189,7 @@ class Down(nn.Module):
 class Up(nn.Module):
     def __init__(self, in_ch, skip_ch, out_ch, time_dim):
         super().__init__()
-        self.up = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
+        self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
         self.net = nn.Sequential(
             ResidualBlock(in_ch + skip_ch, in_ch + skip_ch, residual=True),
             ResidualBlock(in_ch + skip_ch, out_ch),
@@ -196,6 +201,7 @@ class Up(nn.Module):
         x = self.net(torch.cat([skip, x], dim=1))
         e = self.emb(t)[:, :, None, None].expand(-1, -1, x.shape[-2], x.shape[-1])
         return x + e
+
 
 # UNet is the denoiser network used by the DDPM. It predicts the noise present
 # in x_t while conditioning on the timestep embedding.
@@ -238,7 +244,6 @@ class UNet(nn.Module):
 
 
 class PixelDDPM(nn.Module):
-
     def __init__(self, T=200, beta_start=1e-4, beta_end=2e-2, time_dim=256, base_channels=96):
         super().__init__()
         self.T = T
@@ -252,14 +257,14 @@ class PixelDDPM(nn.Module):
         # 5. Store them with self.register_buffer(...)
         # 6. Compute posterior_variance for reverse sampling
 
-        raise NotImplementedError("Students should implement PixelDDPM.__init__")
+        raise NotImplementedError('Students should implement PixelDDPM.__init__')
 
     def q_sample(self, x0, t, noise=None):
         # TODO:
         # Implement forward diffusion:
         #   x_t = sqrt(alpha_bar_t) * x_0 + sqrt(1 - alpha_bar_t) * noise
         # Return x_t and the noise used.
-        raise NotImplementedError("Students should implement PixelDDPM.q_sample")
+        raise NotImplementedError('Students should implement PixelDDPM.q_sample')
 
     def forward(self, x0):
         # TODO:
@@ -267,7 +272,7 @@ class PixelDDPM(nn.Module):
         # 2. Call q_sample(x0, t)
         # 3. Predict the noise with self.eps_model(x_t, t)
         # 4. Return MSE(predicted_noise, true_noise)
-        raise NotImplementedError("Students should implement PixelDDPM.forward")
+        raise NotImplementedError('Students should implement PixelDDPM.forward')
 
     @torch.no_grad()
     def p_sample(self, xt, t_scalar, model):
@@ -275,14 +280,14 @@ class PixelDDPM(nn.Module):
         # Implement one reverse diffusion step.
         # Use the DDPM reverse mean formula and add Gaussian noise
         # unless t_scalar == 0.
-        raise NotImplementedError("Students should implement PixelDDPM.p_sample")
+        raise NotImplementedError('Students should implement PixelDDPM.p_sample')
 
     @torch.no_grad()
     def sample(self, n, model):
         # TODO:
         # Start from pure Gaussian noise and repeatedly call p_sample
         # from timestep T-1 down to 0.
-        raise NotImplementedError("Students should implement PixelDDPM.sample")
+        raise NotImplementedError('Students should implement PixelDDPM.sample')
 
     @torch.no_grad()
     def save_sample_grid(self, epoch, out_dir, model, n=10):
@@ -290,7 +295,7 @@ class PixelDDPM(nn.Module):
         # Generate n images with self.sample(...)
         # Convert them from [-1,1] to [0,1]
         # Save them as a 1x10 strip using save_image(..., nrow=10)
-        raise NotImplementedError("Students should implement PixelDDPM.save_sample_grid")
+        raise NotImplementedError('Students should implement PixelDDPM.save_sample_grid')
 
 
 def main():
@@ -301,17 +306,19 @@ def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     SAMPLES_DIR.mkdir(parents=True, exist_ok=True)
 
-    print("Using device:", DEVICE)
-    if DEVICE.type == "cuda":
+    print('Using device:', DEVICE)
+    if DEVICE.type == 'cuda':
         props = torch.cuda.get_device_properties(0)
-        print("GPU:", torch.cuda.get_device_name(0))
-        print("VRAM: {:.2f} GB".format(props.total_memory / (1024 ** 3)))
+        print('GPU:', torch.cuda.get_device_name(0))
+        print('VRAM: {:.2f} GB'.format(props.total_memory / (1024**3)))
 
-    transform = transforms.Compose([
-        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
-        transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-    ])
+    transform = transforms.Compose(
+        [
+            transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ]
+    )
 
     dataset = ImageDataset(DATA_DIR, transform=transform)
 
@@ -320,7 +327,7 @@ def main():
         batch_size=min(BATCH_SIZE, len(dataset)),
         shuffle=True,
         num_workers=NUM_WORKERS if len(dataset) > 16 else 0,
-        pin_memory=(DEVICE.type == "cuda"),
+        pin_memory=(DEVICE.type == 'cuda'),
         persistent_workers=(NUM_WORKERS > 0 and len(dataset) > 16),
     )
 
@@ -332,15 +339,15 @@ def main():
     ema = EMA(EMA_BETA)
     optimizer = torch.optim.AdamW(ddpm.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
 
-    print("Total training images:", len(dataset))
-    print("T = {}, LR = {}, BASE_CHANNELS = {}".format(T, LR, BASE_CHANNELS))
-    print("Sample grid every {} epochs".format(SAVE_EVERY))
+    print('Total training images:', len(dataset))
+    print('T = {}, LR = {}, BASE_CHANNELS = {}'.format(T, LR, BASE_CHANNELS))
+    print('Sample grid every {} epochs'.format(SAVE_EVERY))
 
     ddpm.eval()
     ddpm.save_sample_grid(0, SAMPLES_DIR, ema_model)
-    print("Saved sample grid for epoch 0")
+    print('Saved sample grid for epoch 0')
 
-    best_loss = float("inf")
+    best_loss = float('inf')
 
     for epoch in range(1, EPOCHS + 1):
         start = time.time()
@@ -363,32 +370,34 @@ def main():
         epoch_loss = running_loss / max(n_seen, 1)
         epoch_time = time.time() - start
 
-        print("Epoch [{:06d}/{}] loss={:.8f} time_per_epoch={:.2f}s".format(
-            epoch, EPOCHS, epoch_loss, epoch_time
-        ))
+        print(
+            'Epoch [{:06d}/{}] loss={:.8f} time_per_epoch={:.2f}s'.format(
+                epoch, EPOCHS, epoch_loss, epoch_time
+            )
+        )
 
         ckpt = {
-            "epoch": epoch,
-            "ddpm_state_dict": ddpm.state_dict(),
-            "ema_model_state_dict": ema_model.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
-            "best_loss": best_loss,
+            'epoch': epoch,
+            'ddpm_state_dict': ddpm.state_dict(),
+            'ema_model_state_dict': ema_model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'best_loss': best_loss,
         }
-        torch.save(ckpt, OUT_DIR / "pixel_diffusion_latest.pt")
+        torch.save(ckpt, OUT_DIR / 'pixel_diffusion_latest.pt')
 
         if epoch_loss < best_loss:
             best_loss = epoch_loss
-            torch.save(ckpt, OUT_DIR / "pixel_diffusion_best.pt")
+            torch.save(ckpt, OUT_DIR / 'pixel_diffusion_best.pt')
 
         if epoch % SAVE_EVERY == 0:
             ddpm.eval()
             ddpm.save_sample_grid(epoch, SAMPLES_DIR, ema_model)
-            print("Saved sample grid for epoch {}".format(epoch))
+            print('Saved sample grid for epoch {}'.format(epoch))
 
-    print("\nTraining complete.")
-    print("Best diffusion loss: {:.8f}".format(best_loss))
-    print("Saved checkpoints to:", OUT_DIR.resolve())
+    print('\nTraining complete.')
+    print('Best diffusion loss: {:.8f}'.format(best_loss))
+    print('Saved checkpoints to:', OUT_DIR.resolve())
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
