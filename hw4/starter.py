@@ -263,6 +263,7 @@ class PixelDDPM(nn.Module):
 
         # helpers
         sqrt_alphas = torch.sqrt(alphas)
+        sqrt_alpha_bars = torch.sqrt(alpha_bars)
         sqrt_one_minus_alpha_bars = torch.sqrt(1 - alpha_bars)
         sampling_epsilon_coeff = -(1 - alphas) / sqrt_one_minus_alpha_bars
 
@@ -270,6 +271,7 @@ class PixelDDPM(nn.Module):
         self.register_buffer('_alphas', alphas)
         self.register_buffer('_alpha_bars', alpha_bars)
         self.register_buffer('_sqrt_alphas', sqrt_alphas)
+        self.register_buffer('_sqrt_alpha_bars', sqrt_alpha_bars)
         self.register_buffer('_sqrt_one_minus_alpha_bars', sqrt_one_minus_alpha_bars)
         self.register_buffer('_sampling_epsilon_coeff', sampling_epsilon_coeff)
 
@@ -283,6 +285,7 @@ class PixelDDPM(nn.Module):
         self._alphas: torch.Tensor
         self._alpha_bars: torch.Tensor
         self._sqrt_alphas: torch.Tensor
+        self._sqrt_alpha_bars: torch.Tensor
         self._sqrt_one_minus_alpha_bars: torch.Tensor
         self._sampling_epsilon_coeff: torch.Tensor
         self._posterior_variance: torch.Tensor
@@ -294,7 +297,7 @@ class PixelDDPM(nn.Module):
         if noise is None:
             noise = torch.randn_like(x0)
         x_t = (
-            self._sqrt_alphas[t][:, None, None, None] * x0
+            self._sqrt_alpha_bars[t][:, None, None, None] * x0
             + self._sqrt_one_minus_alpha_bars[t][:, None, None, None] * noise
         )
         return x_t, noise
@@ -305,7 +308,8 @@ class PixelDDPM(nn.Module):
         # 3. Predict the noise with self.eps_model(x_t, t)
         # 4. Return MSE(predicted_noise, true_noise)
 
-        t = torch.randint(0, self.T, (1,), device=x0.device)
+        # first dimension of x0 is a batch of images, each of which can have its own t.
+        t = torch.randint(0, self.T, (x0.shape[0],), device=x0.device)
         x_t, true_noise = self.q_sample(x0, t)
         pred_noise = self.eps_model(x_t, t)
         return F.mse_loss(pred_noise, true_noise)
