@@ -22,6 +22,22 @@ uv sync
 source .venv/bin/activate
 ```
 
-### Running the Project
+### Running the Projects
 
-Run the jupyter notebook `chw_hw1.ipynb`
+#### HW1
+Run the jupyter notebook `hw1/chw_hw1.ipynb`
+
+#### HW2
+Run the jupyter notebook `hw2/hw2.ipynb`
+
+#### HW3
+```bash
+python hw3/mathformer.py -d_model 128 -seqlen 20 -loadname weights_128 -n_layers 1 -heads 1
+```
+
+See [the hw3 readme](/hw3/README.md) for more info.
+
+#### HW4
+```bash
+python hw4/starter.py
+```
