@@ -13,10 +13,18 @@ around 500 epochs.
 
 ## Results
 
-### Generation 1 - tbd
+### Generation 1 - Enraged Cowboy
+![enraged cowboy](/hw4/epoch_000950.png)
+> index 8 - enraged cowboy
 
-### Generation 2 - tbd
+### Generation 2 - Stoked for Birthday
+![stoked bday](/hw4/epoch_001100.png)
+> index 3 - guy who's stoked for his birthday
 
-### Generation 3 - tbd
+### Generation 3 - Goofy Angel
+![goofy angel](/hw4/epoch_001500.png)
+> index 9 - goofy angel with their tongue out
 
-### Generation 4 - tbd
+### Generation 4 - Incredibly Sweaty
+![hot and crying](/hw4/epoch_001900.png)
+> index 9 - it's so hot out they've got TWO sweat drops AND a blue forehead
